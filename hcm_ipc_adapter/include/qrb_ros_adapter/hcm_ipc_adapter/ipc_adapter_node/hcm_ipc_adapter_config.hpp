@@ -4,11 +4,11 @@
 #ifndef QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_IPC_ADAPTER_NODE_HCM_IPC_ADAPTER_CONFIG_HPP
 #define QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_IPC_ADAPTER_NODE_HCM_IPC_ADAPTER_CONFIG_HPP
 
-#include "qrb_ros_adapter/ipc_runtime/flow_config.hpp"
-#include "qrb_ros_adapter/ipc_runtime/status.hpp"
-
 #include <cstdint>
 #include <string>
+
+#include "qrb_ros_adapter/ipc_runtime/flow_config.hpp"
+#include "qrb_ros_adapter/ipc_runtime/status.hpp"
 
 namespace qrb::adapter
 {
@@ -22,23 +22,23 @@ namespace qrb::adapter
  */
 struct HcmFrameBufferLayout
 {
-    std::uint32_t descriptorLocalSlot{ 0 };
+  std::uint32_t descriptorLocalSlot{ 0 };
 };
 
 /** @brief HCM-only configuration layered on top of the shared FlowConfig. */
 struct HcmIpcAdapterConfig
 {
-    FlowConfig flowConfig;
-    std::string bootstrapSocketPath;
-    std::string nodeName;
-    std::uint32_t nodeId{ 0 };
-    HcmFrameBufferLayout buffers;
-    /** Enable per-frame clock sampling for latency fields in Monitoring data. */
-    bool enableLatencyMonitoring{ false };
+  FlowConfig flowConfig;
+  std::string bootstrapSocketPath;
+  std::string nodeName;
+  std::uint32_t nodeId{ 0 };
+  HcmFrameBufferLayout buffers;
+  /** Enable per-frame clock sampling for latency fields in Monitoring data. */
+  bool enableLatencyMonitoring{ false };
 };
 
 /** QCNode configuration contract generated from the parser's canonical field lists. */
-const std::string &HcmIpcAdapterConfigOptions();
+const std::string & HcmIpcAdapterConfigOptions();
 
 /**
  * @brief Parse the one configured FlowConfig from GF JSON configuration.
@@ -72,7 +72,7 @@ const std::string &HcmIpcAdapterConfigOptions();
  * @return kOk, or kInvalidArgument if the JSON is malformed or a required
  *         field is missing, of the wrong type, or has an unrecognized value.
  */
-Status ParseFlowConfigJson( const std::string &json, FlowConfig &out, std::string &diagnostic );
+Status ParseFlowConfigJson(const std::string & json, FlowConfig & out, std::string & diagnostic);
 
 /**
  * @brief Parse the complete GF-facing QCNode configuration.
@@ -80,9 +80,10 @@ Status ParseFlowConfigJson( const std::string &json, FlowConfig &out, std::strin
  * Every Contract uses exactly one local slot containing its native
  * qrb_contracts descriptor. DMA payload storage is inherited by that descriptor.
  */
-Status ParseHcmIpcAdapterConfigJson(
-    const std::string &json, HcmIpcAdapterConfig &out, std::string &diagnostic );
+Status ParseHcmIpcAdapterConfigJson(const std::string & json,
+    HcmIpcAdapterConfig & out,
+    std::string & diagnostic);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_IPC_ADAPTER_NODE_HCM_IPC_ADAPTER_CONFIG_HPP
+#endif  // QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_IPC_ADAPTER_NODE_HCM_IPC_ADAPTER_CONFIG_HPP

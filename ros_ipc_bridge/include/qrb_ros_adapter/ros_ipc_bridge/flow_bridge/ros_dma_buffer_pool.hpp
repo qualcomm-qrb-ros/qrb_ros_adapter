@@ -6,10 +6,9 @@
 
 #include <chrono>
 #include <cstddef>
+#include <lib_mem_dmabuf/dmabuf.hpp>
 #include <memory>
 #include <string>
-
-#include <lib_mem_dmabuf/dmabuf.hpp>
 
 namespace qrb::adapter
 {
@@ -24,31 +23,30 @@ namespace qrb::adapter
 class RosDmaBufferPool
 {
 public:
-    explicit RosDmaBufferPool(
-        std::size_t maxBuffers, std::string heapName = "/dev/dma_heap/system" );
-    ~RosDmaBufferPool();
+  explicit RosDmaBufferPool(std::size_t maxBuffers, std::string heapName = "/dev/dma_heap/system");
+  ~RosDmaBufferPool();
 
-    RosDmaBufferPool( const RosDmaBufferPool & ) = delete;
-    RosDmaBufferPool &operator=( const RosDmaBufferPool & ) = delete;
+  RosDmaBufferPool(const RosDmaBufferPool &) = delete;
+  RosDmaBufferPool & operator=(const RosDmaBufferPool &) = delete;
 
-    /**
-     * @brief Acquire an exact-sized buffer within `timeout`.
-     *
-     * When every bounded slot is held by ROS messages, the caller waits for a
-     * subscriber to release one. Returns nullptr on timeout, shutdown or an
-     * allocation failure.
-     */
-    std::shared_ptr<lib_mem_dmabuf::DmaBuffer> Acquire(
-        std::size_t size, std::chrono::milliseconds timeout );
+  /**
+   * @brief Acquire an exact-sized buffer within `timeout`.
+   *
+   * When every bounded slot is held by ROS messages, the caller waits for a
+   * subscriber to release one. Returns nullptr on timeout, shutdown or an
+   * allocation failure.
+   */
+  std::shared_ptr<lib_mem_dmabuf::DmaBuffer> Acquire(std::size_t size,
+      std::chrono::milliseconds timeout);
 
-    /** @brief Stop accepting returned buffers and release all currently idle buffers. */
-    void Shutdown();
+  /** @brief Stop accepting returned buffers and release all currently idle buffers. */
+  void Shutdown();
 
 private:
-    struct State;
-    std::shared_ptr<State> state_;
+  struct State;
+  std::shared_ptr<State> state_;
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_DMA_BUFFER_POOL_HPP
+#endif  // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_DMA_BUFFER_POOL_HPP

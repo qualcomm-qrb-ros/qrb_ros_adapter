@@ -4,15 +4,15 @@
 #ifndef QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_FLOW_HANDLER_HPP
 #define QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_FLOW_HANDLER_HPP
 
+#include <google/protobuf/message_lite.h>
+
+#include <chrono>
+#include <rclcpp/node.hpp>
+#include <string>
+
 #include "qrb_ros_adapter/ipc_runtime/flow_config.hpp"
 #include "qrb_ros_adapter/ipc_runtime/status.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/flow_payload.hpp"
-
-#include <chrono>
-#include <string>
-
-#include <google/protobuf/message_lite.h>
-#include <rclcpp/node.hpp>
 
 namespace qrb::adapter
 {
@@ -27,18 +27,19 @@ namespace qrb::adapter
 class RosFlowHandler
 {
 public:
-    virtual ~RosFlowHandler() = default;
+  virtual ~RosFlowHandler() = default;
 
-    virtual Status Open(
-        rclcpp::Node &node, const FlowConfig &config, std::string &diagnostic ) = 0;
-    virtual void Close() noexcept = 0;
+  virtual Status Open(rclcpp::Node & node, const FlowConfig & config, std::string & diagnostic) = 0;
+  virtual void Close() noexcept = 0;
 
-    virtual Status Fetch( google::protobuf::MessageLite &target,
-        OutboundPayload &outPayload, std::string &diagnostic,
-        std::chrono::milliseconds sampleTimeout ) = 0;
-    virtual void CancelPendingFetch() noexcept = 0;
-    virtual Status Publish( const google::protobuf::MessageLite &source,
-        InboundPayload &payload, std::string &diagnostic ) = 0;
+  virtual Status Fetch(google::protobuf::MessageLite & target,
+      OutboundPayload & outPayload,
+      std::string & diagnostic,
+      std::chrono::milliseconds sampleTimeout) = 0;
+  virtual void CancelPendingFetch() noexcept = 0;
+  virtual Status Publish(const google::protobuf::MessageLite & source,
+      InboundPayload & payload,
+      std::string & diagnostic) = 0;
 };
 
 /**
@@ -51,38 +52,41 @@ template <typename ContractT>
 class TypedRosFlowHandler : public RosFlowHandler
 {
 public:
-    Status Fetch( google::protobuf::MessageLite &target,
-        OutboundPayload &outPayload, std::string &diagnostic,
-        std::chrono::milliseconds sampleTimeout ) final
-    {
-        auto *contract = dynamic_cast<ContractT *>( &target );
-        if ( contract == nullptr )
-        {
-            diagnostic += "ROS handler received an unexpected Contract target type; ";
-            return Status::kInternalError;
-        }
-        return FetchTyped( *contract, outPayload, diagnostic, sampleTimeout );
+  Status Fetch(google::protobuf::MessageLite & target,
+      OutboundPayload & outPayload,
+      std::string & diagnostic,
+      std::chrono::milliseconds sampleTimeout) final
+  {
+    auto * contract = dynamic_cast<ContractT *>(&target);
+    if (contract == nullptr) {
+      diagnostic += "ROS handler received an unexpected Contract target type; ";
+      return Status::kInternalError;
     }
+    return FetchTyped(*contract, outPayload, diagnostic, sampleTimeout);
+  }
 
-    Status Publish( const google::protobuf::MessageLite &source,
-        InboundPayload &payload, std::string &diagnostic ) final
-    {
-        const auto *contract = dynamic_cast<const ContractT *>( &source );
-        if ( contract == nullptr )
-        {
-            diagnostic += "ROS handler received an unexpected Contract source type; ";
-            return Status::kInternalError;
-        }
-        return PublishTyped( *contract, payload, diagnostic );
+  Status Publish(const google::protobuf::MessageLite & source,
+      InboundPayload & payload,
+      std::string & diagnostic) final
+  {
+    const auto * contract = dynamic_cast<const ContractT *>(&source);
+    if (contract == nullptr) {
+      diagnostic += "ROS handler received an unexpected Contract source type; ";
+      return Status::kInternalError;
     }
+    return PublishTyped(*contract, payload, diagnostic);
+  }
 
 protected:
-    virtual Status FetchTyped( ContractT &target, OutboundPayload &outPayload,
-        std::string &diagnostic, std::chrono::milliseconds sampleTimeout ) = 0;
-    virtual Status PublishTyped( const ContractT &source, InboundPayload &payload,
-        std::string &diagnostic ) = 0;
+  virtual Status FetchTyped(ContractT & target,
+      OutboundPayload & outPayload,
+      std::string & diagnostic,
+      std::chrono::milliseconds sampleTimeout) = 0;
+  virtual Status PublishTyped(const ContractT & source,
+      InboundPayload & payload,
+      std::string & diagnostic) = 0;
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_FLOW_HANDLER_HPP
+#endif  // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_FLOW_HANDLER_HPP

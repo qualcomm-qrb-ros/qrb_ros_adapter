@@ -4,11 +4,11 @@
 #ifndef QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_CONFIG_HPP
 #define QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_CONFIG_HPP
 
-#include "qrb_ros_adapter/ipc_runtime/flow_types.hpp"
-#include "qrb_ros_adapter/ipc_runtime/status.hpp"
-
 #include <cstdint>
 #include <string>
+
+#include "qrb_ros_adapter/ipc_runtime/flow_types.hpp"
+#include "qrb_ros_adapter/ipc_runtime/status.hpp"
 
 namespace qrb::adapter
 {
@@ -24,18 +24,18 @@ namespace qrb::adapter
  */
 struct FlowConfig
 {
-    std::string flowId;
-    std::string contractTypeName;
-    Direction direction{ Direction::kUnspecified };
-    std::string rosTopic;
-    QosProfile qosProfile{ QosProfile::kRosDefault };
-    /** Zero selects the standard ROS default depth. */
-    std::uint32_t qosDepth{ 0 };
-    /** End-to-end HCM initialization deadline for register, connect and handshake. */
-    std::uint32_t startupTimeoutMs{ 3000 };
-    /** Maximum wait for a fresh ROS sample on ROS_TO_HCM source Flows. */
-    std::uint32_t sampleTimeoutMs{ 1000 };
-    std::uint32_t requestTimeoutMs{ 100 };
+  std::string flowId;
+  std::string contractTypeName;
+  Direction direction{ Direction::kUnspecified };
+  std::string rosTopic;
+  QosProfile qosProfile{ QosProfile::kRosDefault };
+  /** Zero selects the standard ROS default depth. */
+  std::uint32_t qosDepth{ 0 };
+  /** End-to-end HCM initialization deadline for register, connect and handshake. */
+  std::uint32_t startupTimeoutMs{ 3000 };
+  /** Maximum wait for a fresh ROS sample on ROS_TO_HCM source Flows. */
+  std::uint32_t sampleTimeoutMs{ 1000 };
+  std::uint32_t requestTimeoutMs{ 100 };
 };
 
 /** @brief Bounds on `requestTimeoutMs`, validated at startup. */
@@ -70,9 +70,10 @@ constexpr std::uint32_t kMaxQosDepth = 1024;
  * @return kOk, kInvalidArgument (a malformed or missing field), or
  *         kUnsupportedContract.
  */
-Status ValidateFlowConfig(
-    const FlowConfig &config, const ContractDescriptor &descriptor, std::string &diagnostic );
+Status ValidateFlowConfig(const FlowConfig & config,
+    const ContractDescriptor & descriptor,
+    std::string & diagnostic);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_CONFIG_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_CONFIG_HPP

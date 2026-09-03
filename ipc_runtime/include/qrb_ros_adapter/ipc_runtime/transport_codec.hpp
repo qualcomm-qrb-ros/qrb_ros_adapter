@@ -4,11 +4,11 @@
 #ifndef QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_CODEC_HPP
 #define QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_CODEC_HPP
 
-#include "qrb_ros_adapter/ipc_runtime/status.hpp"
-#include "qrb_ros_adapter/ipc_runtime/transport_header.hpp"
-
 #include <cstdint>
 #include <vector>
+
+#include "qrb_ros_adapter/ipc_runtime/status.hpp"
+#include "qrb_ros_adapter/ipc_runtime/transport_header.hpp"
 
 namespace qrb::adapter
 {
@@ -21,7 +21,7 @@ namespace qrb::adapter
  * Protobuf and do the same. Contract-specific encoding does not belong in the
  * transport codec.
  */
-std::vector<std::uint8_t> EncodeTransportHeader( const TransportHeader &header );
+std::vector<std::uint8_t> EncodeTransportHeader(const TransportHeader & header);
 
 /**
  * @brief Parse a TransportHeader out of `data`.
@@ -35,8 +35,8 @@ std::vector<std::uint8_t> EncodeTransportHeader( const TransportHeader &header )
  *         kVersionMismatch on a protocol version disagreement, or
  *         kProtocolError if any field fails validation.
  */
-Status DecodeTransportHeader( const std::uint8_t *data, std::size_t len, TransportHeader &out );
+Status DecodeTransportHeader(const std::uint8_t * data, std::size_t len, TransportHeader & out);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_CODEC_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_CODEC_HPP

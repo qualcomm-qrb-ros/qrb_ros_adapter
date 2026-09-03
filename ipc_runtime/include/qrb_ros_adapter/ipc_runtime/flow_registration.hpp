@@ -12,10 +12,10 @@ namespace qrb::adapter
 /** @brief Runtime identity assigned by the ROS Bridge Manager at registration. */
 struct FlowRegistration
 {
-    std::string dataSocketPath;
-    std::string instanceToken;
+  std::string dataSocketPath;
+  std::string instanceToken;
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_REGISTRATION_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_REGISTRATION_HPP

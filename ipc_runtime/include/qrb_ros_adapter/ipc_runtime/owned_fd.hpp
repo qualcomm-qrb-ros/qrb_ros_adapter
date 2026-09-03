@@ -24,48 +24,47 @@ namespace qrb::adapter
 class OwnedFd
 {
 public:
-    OwnedFd() = default;
+  OwnedFd() = default;
 
-    explicit OwnedFd( int fd ) : fd_( fd ) {}
+  explicit OwnedFd(int fd) : fd_(fd) {}
 
-    ~OwnedFd() { Reset(); }
+  ~OwnedFd() { Reset(); }
 
-    OwnedFd( const OwnedFd & ) = delete;
-    OwnedFd &operator=( const OwnedFd & ) = delete;
+  OwnedFd(const OwnedFd &) = delete;
+  OwnedFd & operator=(const OwnedFd &) = delete;
 
-    OwnedFd( OwnedFd &&other ) noexcept : fd_( other.fd_ ) { other.fd_ = -1; }
+  OwnedFd(OwnedFd && other) noexcept : fd_(other.fd_) { other.fd_ = -1; }
 
-    OwnedFd &operator=( OwnedFd &&other ) noexcept
-    {
-        if ( this != &other )
-        {
-            Reset();
-            fd_ = other.fd_;
-            other.fd_ = -1;
-        }
-        return *this;
+  OwnedFd & operator=(OwnedFd && other) noexcept
+  {
+    if (this != &other) {
+      Reset();
+      fd_ = other.fd_;
+      other.fd_ = -1;
     }
+    return *this;
+  }
 
-    /** @brief The owned descriptor, or -1. Ownership stays here. */
-    int Get() const { return fd_; }
+  /** @brief The owned descriptor, or -1. Ownership stays here. */
+  int Get() const { return fd_; }
 
-    bool IsValid() const { return fd_ >= 0; }
+  bool IsValid() const { return fd_ >= 0; }
 
-    /** @brief Give up ownership without closing; caller becomes responsible. */
-    [[nodiscard]] int Release()
-    {
-        int fd = fd_;
-        fd_ = -1;
-        return fd;
-    }
+  /** @brief Give up ownership without closing; caller becomes responsible. */
+  [[nodiscard]] int Release()
+  {
+    int fd = fd_;
+    fd_ = -1;
+    return fd;
+  }
 
-    /** @brief Close the current fd (if any) and take ownership of `fd`. */
-    void Reset( int fd = -1 );
+  /** @brief Close the current fd (if any) and take ownership of `fd`. */
+  void Reset(int fd = -1);
 
 private:
-    int fd_{ -1 };
+  int fd_{ -1 };
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_OWNED_FD_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_OWNED_FD_HPP

@@ -4,11 +4,10 @@
 #ifndef QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_CONTRACT_TIME_HPP
 #define QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_CONTRACT_TIME_HPP
 
-#include "qrb_ros_adapter/ipc_runtime/conversion_result.hpp"
-
+#include <builtin_interfaces/msg/time.hpp>
 #include <cstdint>
 
-#include <builtin_interfaces/msg/time.hpp>
+#include "qrb_ros_adapter/ipc_runtime/conversion_result.hpp"
 
 namespace qrb::adapter
 {
@@ -38,16 +37,16 @@ constexpr std::uint64_t kNanosPerSecond = 1000000000ULL;
  * @return Success, or a diagnostic if `stamp.sec` is negative or the product
  *         overflows.
  */
-ConversionResult StampToContractNanos(
-    const builtin_interfaces::msg::Time &stamp, std::uint64_t &outNanos );
+ConversionResult StampToContractNanos(const builtin_interfaces::msg::Time & stamp,
+    std::uint64_t & outNanos);
 
 /**
  * @brief Contract nanoseconds -> ROS stamp.
  * @return Success, or a diagnostic if the seconds part exceeds int32.
  */
-ConversionResult ContractNanosToStamp(
-    std::uint64_t nanos, builtin_interfaces::msg::Time &outStamp );
+ConversionResult ContractNanosToStamp(std::uint64_t nanos,
+    builtin_interfaces::msg::Time & outStamp);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_CONTRACT_TIME_HPP
+#endif  // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_ROS_CONTRACT_TIME_HPP

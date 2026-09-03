@@ -25,38 +25,38 @@ namespace qrb::adapter
  */
 enum class Status : std::uint8_t
 {
-    kOk = 0,               /**< Success. */
-    kNoData,               /**< The ROS bridge's bounded fresh-sample wait expired.
-                                The current call reports timeout to GF, while the
-                                Flow and data Session remain usable. */
-    kInvalidArgument,      /**< Caller supplied an invalid argument, or a
-                                received message failed validation. */
-    kUnsupportedContract,  /**< Contract type name is not registered, or its
-                                descriptor does not support the requested
-                                direction. */
-    kProtocolError,        /**< Malformed frame, unexpected operation, bad fd
-                                count, or a mismatched request ID. */
-    kConversionError,      /**< Contract <-> ROS/HCM conversion failed a
-                                consistency or finite-value check. */
-    kResourceError,        /**< fd, DMA-BUF, socket or memory resource
-                                failure. */
-    kInternalError,        /**< Invariant violation on our own side. */
+  kOk = 0,              /**< Success. */
+  kNoData,              /**< The ROS bridge's bounded fresh-sample wait expired.
+                             The current call reports timeout to GF, while the
+                             Flow and data Session remain usable. */
+  kInvalidArgument,     /**< Caller supplied an invalid argument, or a
+                             received message failed validation. */
+  kUnsupportedContract, /**< Contract type name is not registered, or its
+                             descriptor does not support the requested
+                             direction. */
+  kProtocolError,       /**< Malformed frame, unexpected operation, bad fd
+                             count, or a mismatched request ID. */
+  kConversionError,     /**< Contract <-> ROS/HCM conversion failed a
+                             consistency or finite-value check. */
+  kResourceError,       /**< fd, DMA-BUF, socket or memory resource
+                             failure. */
+  kInternalError,       /**< Invariant violation on our own side. */
 
-    kVersionMismatch,      /**< Transport protocol version disagreement. */
-    kTimeout,              /**< No frame arrived within the caller's bound.
-                                Distinct from kNoData: the peer said nothing
-                                at all, rather than "nothing to give". */
-    kBadState,             /**< Operation not valid for the current resource
-                                setup (e.g. a data op before the handshake). */
+  kVersionMismatch, /**< Transport protocol version disagreement. */
+  kTimeout,         /**< No frame arrived within the caller's bound.
+                         Distinct from kNoData: the peer said nothing
+                         at all, rather than "nothing to give". */
+  kBadState,        /**< Operation not valid for the current resource
+                         setup (e.g. a data op before the handshake). */
 };
 
 /** @brief Human-readable name for a Status, for logging. */
-const char *ToString( Status status );
+const char * ToString(Status status);
 
 /** @brief True if `status` means "the call did what was asked". */
-constexpr bool IsOk( Status status )
+constexpr bool IsOk(Status status)
 {
-    return status == Status::kOk;
+  return status == Status::kOk;
 }
 
 /**
@@ -65,16 +65,17 @@ constexpr bool IsOk( Status status )
  * A Protocol/Transport/fd error or request timeout moves the Flow to Error and
  * it never reconnects on its own. kNoData is a completed, nonfatal request.
  */
-constexpr bool IsFatalForFlow( Status status )
+constexpr bool IsFatalForFlow(Status status)
 {
-    switch ( status )
-    {
-        case Status::kOk:
-        case Status::kNoData: return false;
-        default: return true;
-    }
+  switch (status) {
+    case Status::kOk:
+    case Status::kNoData:
+      return false;
+    default:
+      return true;
+  }
 }
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_STATUS_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_STATUS_HPP

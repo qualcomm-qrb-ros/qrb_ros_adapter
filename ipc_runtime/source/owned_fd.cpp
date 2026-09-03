@@ -8,10 +8,11 @@
 namespace qrb::adapter
 {
 
-void OwnedFd::Reset( int fd )
+void OwnedFd::Reset(int fd)
 {
-    if ( fd_ >= 0 && fd_ != fd ) ::close( fd_ );
-    fd_ = fd;
+  if (fd_ >= 0 && fd_ != fd)
+    ::close(fd_);
+  fd_ = fd;
 }
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter

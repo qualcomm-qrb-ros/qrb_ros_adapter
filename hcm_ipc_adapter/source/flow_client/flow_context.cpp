@@ -6,39 +6,38 @@
 namespace qrb::adapter
 {
 
-Status FlowContext::Configure( const FlowConfig &config, const ContractDescriptor &descriptor )
+Status FlowContext::Configure(const FlowConfig & config, const ContractDescriptor & descriptor)
 {
-    if ( descriptor_ != nullptr ) return Status::kBadState;
-    config_ = config;
-    descriptor_ = &descriptor;
-    return Status::kOk;
+  if (descriptor_ != nullptr)
+    return Status::kBadState;
+  config_ = config;
+  descriptor_ = &descriptor;
+  return Status::kOk;
 }
 
-Status FlowContext::AssignRegistration( const FlowRegistration &registration )
+Status FlowContext::AssignRegistration(const FlowRegistration & registration)
 {
-    if ( descriptor_ == nullptr || !registration_.dataSocketPath.empty()
-        || !registration_.instanceToken.empty() )
-    {
-        return Status::kBadState;
-    }
-    if ( registration.dataSocketPath.empty() || registration.instanceToken.empty() )
-    {
-        return Status::kInvalidArgument;
-    }
-    registration_ = registration;
-    return Status::kOk;
+  if (descriptor_ == nullptr || !registration_.dataSocketPath.empty() ||
+      !registration_.instanceToken.empty()) {
+    return Status::kBadState;
+  }
+  if (registration.dataSocketPath.empty() || registration.instanceToken.empty()) {
+    return Status::kInvalidArgument;
+  }
+  registration_ = registration;
+  return Status::kOk;
 }
 
 void FlowContext::Reset()
 {
-    config_ = {};
-    registration_ = {};
-    descriptor_ = nullptr;
-    lastRequestId_ = 0;
-    framesIn = 0;
-    framesOut = 0;
-    noDataResponses = 0;
-    conversionErrors = 0;
+  config_ = {};
+  registration_ = {};
+  descriptor_ = nullptr;
+  lastRequestId_ = 0;
+  framesIn = 0;
+  framesOut = 0;
+  noDataResponses = 0;
+  conversionErrors = 0;
 }
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
