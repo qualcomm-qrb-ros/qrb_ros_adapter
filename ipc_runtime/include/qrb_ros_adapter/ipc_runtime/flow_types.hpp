@@ -12,15 +12,15 @@ namespace qrb::adapter
 
 enum class PayloadClass : std::uint8_t
 {
-    kInline,
-    kDmaBuf,
+  kInline,
+  kDmaBuf,
 };
 
 enum class Direction : std::uint8_t
 {
-    kUnspecified = 0,
-    kRosToHcm = 1,
-    kHcmToRos = 2,
+  kUnspecified = 0,
+  kRosToHcm = 1,
+  kHcmToRos = 2,
 };
 
 /**
@@ -31,23 +31,23 @@ enum class Direction : std::uint8_t
  */
 enum class QosProfile : std::uint8_t
 {
-    kRosDefault = 0,
-    kReliable = 1,
-    kSensorData = 2,
-    kTransientLocal = 3,
+  kRosDefault = 0,
+  kReliable = 1,
+  kSensorData = 2,
+  kTransientLocal = 3,
 };
 
 struct ContractDescriptor
 {
-    std::string_view typeName;
-    PayloadClass payloadClass{ PayloadClass::kInline };
+  std::string_view typeName;
+  PayloadClass payloadClass{ PayloadClass::kInline };
 };
 
-const char *ToString( PayloadClass payloadClass );
-const char *ToString( Direction direction );
-const char *ToString( QosProfile profile );
-bool ParseQosProfile( std::string_view text, QosProfile &out );
+const char * ToString(PayloadClass payloadClass);
+const char * ToString(Direction direction);
+const char * ToString(QosProfile profile);
+bool ParseQosProfile(std::string_view text, QosProfile & out);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_TYPES_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_FLOW_TYPES_HPP

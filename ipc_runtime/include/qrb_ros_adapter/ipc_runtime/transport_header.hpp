@@ -18,7 +18,7 @@ constexpr std::uint32_t kTransportMagic = 0x51524241u;
  *
  * Version 1 adds the DMA payload offset to the fixed wire header. Peers with a
  * different version are rejected before operation-specific parsing.
-*/
+ */
 constexpr std::uint16_t kTransportVersion = 1;
 
 /**
@@ -40,27 +40,27 @@ constexpr std::uint16_t kTransportVersion = 1;
  *
  * Values are stable within one protocol version; incompatible changes bump
  * kTransportVersion.
-*/
+ */
 enum class Operation : std::uint16_t
 {
-    kConnectRequest = 1,
-    kConnectResponse = 2,
-    kFetchRequest = 3,
-    kFetchResponse = 4,
-    kPublishRequest = 5,
-    kPublishResponse = 6,
-    kRegisterFlowRequest = 7,
-    kRegisterFlowResponse = 8,
-    kUnregisterFlowRequest = 9,
-    kUnregisterFlowResponse = 10,
-    kFetchComplete = 11,
+  kConnectRequest = 1,
+  kConnectResponse = 2,
+  kFetchRequest = 3,
+  kFetchResponse = 4,
+  kPublishRequest = 5,
+  kPublishResponse = 6,
+  kRegisterFlowRequest = 7,
+  kRegisterFlowResponse = 8,
+  kUnregisterFlowRequest = 9,
+  kUnregisterFlowResponse = 10,
+  kFetchComplete = 11,
 };
 
 /** @brief Human-readable name for an Operation, for logging. */
-const char *ToString( Operation operation );
+const char * ToString(Operation operation);
 
 /** @brief True if `value` is a defined Operation. */
-bool IsValidOperation( std::uint16_t value );
+bool IsValidOperation(std::uint16_t value);
 
 namespace transport_flags
 {
@@ -71,7 +71,7 @@ namespace transport_flags
  * NO_DATA -- the ROS IPC Bridge's bounded fresh-sample wait expired.
  */
 constexpr std::uint32_t kHasData = 1u << 0;
-}   // namespace transport_flags
+}  // namespace transport_flags
 
 /**
  * @brief Fixed-size header prefixing every frame -- HLD §9.2, which fixes the
@@ -87,15 +87,15 @@ constexpr std::uint32_t kHasData = 1u << 0;
  */
 struct TransportHeader
 {
-    std::uint32_t magic{ kTransportMagic };
-    std::uint16_t protocolVersion{ kTransportVersion };
-    std::uint16_t operation{ 0 };
-    std::uint64_t requestId{ 0 };
-    std::uint32_t payloadSize{ 0 };
-    std::uint32_t flags{ 0 };
-    std::uint32_t fdCount{ 0 };
-    /** Byte offset of the logical payload within the attached DMA-BUF. */
-    std::uint64_t payloadOffset{ 0 };
+  std::uint32_t magic{ kTransportMagic };
+  std::uint16_t protocolVersion{ kTransportVersion };
+  std::uint16_t operation{ 0 };
+  std::uint64_t requestId{ 0 };
+  std::uint32_t payloadSize{ 0 };
+  std::uint32_t flags{ 0 };
+  std::uint32_t fdCount{ 0 };
+  /** Byte offset of the logical payload within the attached DMA-BUF. */
+  std::uint64_t payloadOffset{ 0 };
 };
 
 /** @brief Encoded size of TransportHeader on the wire. */
@@ -120,6 +120,6 @@ constexpr std::size_t kMaxPayloadSize = 1u << 20;
  */
 constexpr std::uint32_t kMaxFdCount = 4;
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_HEADER_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_TRANSPORT_HEADER_HPP

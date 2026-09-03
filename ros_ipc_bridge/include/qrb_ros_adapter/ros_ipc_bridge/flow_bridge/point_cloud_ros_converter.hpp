@@ -4,17 +4,14 @@
 #ifndef QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_POINT_CLOUD_ROS_CONVERTER_HPP
 #define QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_POINT_CLOUD_ROS_CONVERTER_HPP
 
-#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/ros_conversion.hpp"
-#include "qrb/contract/sensor/v1/point_cloud2.pb.h"
-
 #include <cstdint>
+#include <lib_mem_dmabuf/dmabuf.hpp>
 #include <memory>
-
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 
-#include <lib_mem_dmabuf/dmabuf.hpp>
-
+#include "qrb/contract/sensor/v1/point_cloud2.pb.h"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/ros_conversion.hpp"
 #include "qrb_ros_transport_point_cloud2_type/point_cloud2.hpp"
 
 namespace qrb::adapter
@@ -30,18 +27,19 @@ using PointCloudContract = PointCloudRosContract;
 template <>
 struct RosConversion<PointCloudRosMessage, PointCloudRosContract>
 {
-    using RosType = PointCloudRosMessage;
-    using ContractType = PointCloudRosContract;
+  using RosType = PointCloudRosMessage;
+  using ContractType = PointCloudRosContract;
 
-    static ConversionResult RosToContract( const RosType &source,
-        ContractType &target, RosToContractPayload &payload );
-    static ConversionResult ContractToRos( const ContractType &source,
-        RosType &target, ContractToRosPayload &payload );
+  static ConversionResult RosToContract(const RosType & source,
+      ContractType & target,
+      RosToContractPayload & payload);
+  static ConversionResult ContractToRos(const ContractType & source,
+      RosType & target,
+      ContractToRosPayload & payload);
 };
 
-using PointCloudRosConversion =
-    RosConversion<PointCloudRosMessage, PointCloudRosContract>;
+using PointCloudRosConversion = RosConversion<PointCloudRosMessage, PointCloudRosContract>;
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_POINT_CLOUD_ROS_CONVERTER_HPP
+#endif  // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_POINT_CLOUD_ROS_CONVERTER_HPP

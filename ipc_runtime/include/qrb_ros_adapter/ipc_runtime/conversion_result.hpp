@@ -14,28 +14,29 @@ namespace qrb::adapter
 class ConversionResult final
 {
 public:
-    static ConversionResult Success() { return ConversionResult( true, {} ); }
+  static ConversionResult Success() { return ConversionResult(true, {}); }
 
-    static ConversionResult Failure( std::string diagnostic )
-    {
-        if ( diagnostic.empty() ) diagnostic = "message conversion failed";
-        return ConversionResult( false, std::move( diagnostic ) );
-    }
+  static ConversionResult Failure(std::string diagnostic)
+  {
+    if (diagnostic.empty())
+      diagnostic = "message conversion failed";
+    return ConversionResult(false, std::move(diagnostic));
+  }
 
-    explicit operator bool() const noexcept { return succeeded_; }
-    bool Succeeded() const noexcept { return succeeded_; }
-    const std::string &Diagnostic() const noexcept { return diagnostic_; }
+  explicit operator bool() const noexcept { return succeeded_; }
+  bool Succeeded() const noexcept { return succeeded_; }
+  const std::string & Diagnostic() const noexcept { return diagnostic_; }
 
 private:
-    ConversionResult( bool succeeded, std::string diagnostic )
-        : succeeded_( succeeded ), diagnostic_( std::move( diagnostic ) )
-    {
-    }
+  ConversionResult(bool succeeded, std::string diagnostic)
+    : succeeded_(succeeded), diagnostic_(std::move(diagnostic))
+  {
+  }
 
-    bool succeeded_;
-    std::string diagnostic_;
+  bool succeeded_;
+  std::string diagnostic_;
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_IPC_RUNTIME_CONVERSION_RESULT_HPP
+#endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_CONVERSION_RESULT_HPP

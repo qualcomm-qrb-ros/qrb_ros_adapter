@@ -4,10 +4,9 @@
 #ifndef QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_POINT_CLOUD_HCM_CONVERTER_HPP
 #define QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_POINT_CLOUD_HCM_CONVERTER_HPP
 
-#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/hcm_conversion.hpp"
-
 #include "QRB/Memory/Sensor/PointCloudDescriptor.hpp"
 #include "qrb/contract/sensor/v1/point_cloud2.pb.h"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/hcm_conversion.hpp"
 
 namespace qrb::adapter
 {
@@ -17,13 +16,15 @@ using PointCloudHcmDescriptor = QRB::Memory::PointCloudDescriptor_t;
 
 template <>
 ConversionResult ConvertContractToHcm<PointCloudHcmContract, PointCloudHcmDescriptor>(
-    const PointCloudHcmContract &source, const DmaBufView &payload,
-    PointCloudHcmDescriptor &target );
+    const PointCloudHcmContract & source,
+    const DmaBufView & payload,
+    PointCloudHcmDescriptor & target);
 
 template <>
 ConversionResult ConvertHcmToContract<PointCloudHcmContract, PointCloudHcmDescriptor>(
-    const PointCloudHcmDescriptor &source, PointCloudHcmContract &target );
+    const PointCloudHcmDescriptor & source,
+    PointCloudHcmContract & target);
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_POINT_CLOUD_HCM_CONVERTER_HPP
+#endif  // QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_POINT_CLOUD_HCM_CONVERTER_HPP

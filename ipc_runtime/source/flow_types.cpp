@@ -6,47 +6,58 @@
 namespace qrb::adapter
 {
 
-const char *ToString( PayloadClass payloadClass )
+const char * ToString(PayloadClass payloadClass)
 {
-    switch ( payloadClass )
-    {
-        case PayloadClass::kInline: return "inline";
-        case PayloadClass::kDmaBuf: return "dma_buf";
-    }
-    return "unknown";
+  switch (payloadClass) {
+    case PayloadClass::kInline:
+      return "inline";
+    case PayloadClass::kDmaBuf:
+      return "dma_buf";
+  }
+  return "unknown";
 }
 
-const char *ToString( Direction direction )
+const char * ToString(Direction direction)
 {
-    switch ( direction )
-    {
-        case Direction::kRosToHcm: return "ros_to_hcm";
-        case Direction::kHcmToRos: return "hcm_to_ros";
-        case Direction::kUnspecified: return "unspecified";
-    }
-    return "unknown";
+  switch (direction) {
+    case Direction::kRosToHcm:
+      return "ros_to_hcm";
+    case Direction::kHcmToRos:
+      return "hcm_to_ros";
+    case Direction::kUnspecified:
+      return "unspecified";
+  }
+  return "unknown";
 }
 
-const char *ToString( QosProfile profile )
+const char * ToString(QosProfile profile)
 {
-    switch ( profile )
-    {
-        case QosProfile::kRosDefault: return "ros_default";
-        case QosProfile::kReliable: return "reliable";
-        case QosProfile::kSensorData: return "sensor_data";
-        case QosProfile::kTransientLocal: return "transient_local";
-    }
-    return "unknown";
+  switch (profile) {
+    case QosProfile::kRosDefault:
+      return "ros_default";
+    case QosProfile::kReliable:
+      return "reliable";
+    case QosProfile::kSensorData:
+      return "sensor_data";
+    case QosProfile::kTransientLocal:
+      return "transient_local";
+  }
+  return "unknown";
 }
 
-bool ParseQosProfile( std::string_view text, QosProfile &out )
+bool ParseQosProfile(std::string_view text, QosProfile & out)
 {
-    if ( text == "ros_default" ) out = QosProfile::kRosDefault;
-    else if ( text == "reliable" ) out = QosProfile::kReliable;
-    else if ( text == "sensor_data" ) out = QosProfile::kSensorData;
-    else if ( text == "transient_local" ) out = QosProfile::kTransientLocal;
-    else return false;
-    return true;
+  if (text == "ros_default")
+    out = QosProfile::kRosDefault;
+  else if (text == "reliable")
+    out = QosProfile::kReliable;
+  else if (text == "sensor_data")
+    out = QosProfile::kSensorData;
+  else if (text == "transient_local")
+    out = QosProfile::kTransientLocal;
+  else
+    return false;
+  return true;
 }
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter

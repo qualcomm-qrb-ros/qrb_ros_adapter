@@ -4,31 +4,31 @@
 #ifndef QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_FLOW_PAYLOAD_HPP
 #define QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_FLOW_PAYLOAD_HPP
 
-#include "qrb_ros_adapter/ipc_runtime/owned_fd.hpp"
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+
+#include "qrb_ros_adapter/ipc_runtime/owned_fd.hpp"
 
 namespace qrb::adapter
 {
 
 struct OutboundPayload
 {
-    int fd{ -1 };
-    std::shared_ptr<void> keepAlive;
-    std::uint64_t offset{ 0 };
-    bool hasPayload{ false };
+  int fd{ -1 };
+  std::shared_ptr<void> keepAlive;
+  std::uint64_t offset{ 0 };
+  bool hasPayload{ false };
 };
 
 struct InboundPayload
 {
-    OwnedFd fd;
-    std::size_t capacity{ 0 };
-    std::size_t offset{ 0 };
-    bool hasPayload{ false };
+  OwnedFd fd;
+  std::size_t capacity{ 0 };
+  std::size_t offset{ 0 };
+  bool hasPayload{ false };
 };
 
-}   // namespace qrb::adapter
+}  // namespace qrb::adapter
 
-#endif   // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_FLOW_PAYLOAD_HPP
+#endif  // QRB_ROS_ADAPTER_ROS_IPC_BRIDGE_FLOW_BRIDGE_FLOW_PAYLOAD_HPP
