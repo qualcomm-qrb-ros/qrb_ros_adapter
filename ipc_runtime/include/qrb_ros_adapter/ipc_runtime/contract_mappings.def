@@ -1,0 +1,29 @@
+// Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
+// Intentionally no include guard: this is the single declarative mapping list
+// expanded independently by the shared, HCM and ROS registries.
+
+#if defined( QRB_CONTRACT_MAPPING_INCLUDE_HCM_HEADERS )
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
+#endif
+
+#if defined( QRB_CONTRACT_MAPPING_INCLUDE_ROS_HEADERS )
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_ros_converter.hpp"
+#endif
+
+#if defined( QRB_CONTRACT_MAPPING )
+QRB_CONTRACT_MAPPING( PoseWithCovarianceStamped,
+    "qrb.contract.geometry.v1.PoseWithCovarianceStamped", Inline,
+    ::qrb::contract::geometry::v1::PoseWithCovarianceStamped,
+    ::qrb::adapter::PoseHcmDescriptor,
+    ::qrb::adapter::PoseRosMessage, "pose_bridge" )
+
+QRB_CONTRACT_MAPPING( PointCloud,
+    "qrb.contract.sensor.v1.PointCloud2", DmaBuf,
+    ::qrb::contract::sensor::v1::PointCloud2,
+    ::qrb::adapter::PointCloudHcmDescriptor,
+    ::qrb::adapter::PointCloudRosMessage, "pointcloud_bridge" )
+#endif

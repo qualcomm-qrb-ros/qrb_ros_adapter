@@ -1,0 +1,6 @@
+qrb_ros_bridge_manager:
+  ros__parameters:
+    bootstrap_socket_path: /run/qrb_ros_adapter/bootstrap.sock
+    flow_socket_directory: /run/qrb_ros_adapter/flows
+    max_flows: 32
+    ros_dma_buffer_pool_size: 12

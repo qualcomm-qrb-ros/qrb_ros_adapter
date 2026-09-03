@@ -1,0 +1,96 @@
+// Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+//
+// Normative IPC control protocol -- HLD Sections 5.3 and 6.1.
+//
+// This file owns Adapter control messages only. Business data operations carry
+// the bound qrb.contract.* message directly, without an Adapter-owned envelope.
+
+syntax = "proto3";
+
+package qrb.adapter.ipc.v1;
+
+option optimize_for = LITE_RUNTIME;
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  ROS_TO_HCM = 1;
+  HCM_TO_ROS = 2;
+}
+
+// Restricted ROS QoS surface for one dynamically created Topic endpoint.
+// A zero qos_depth and ROS_DEFAULT profile select the standard ROS defaults.
+enum QosProfile {
+  QOS_PROFILE_ROS_DEFAULT = 0;
+  QOS_PROFILE_RELIABLE = 1;
+  QOS_PROFILE_SENSOR_DATA = 2;
+  QOS_PROFILE_TRANSIENT_LOCAL = 3;
+}
+
+enum StatusCode {
+  STATUS_CODE_UNSPECIFIED = 0;
+  OK = 1;
+  NO_DATA = 2;
+  INVALID_ARGUMENT = 3;
+  UNSUPPORTED_CONTRACT = 4;
+  PROTOCOL_ERROR = 5;
+  CONVERSION_ERROR = 6;
+  RESOURCE_ERROR = 7;
+  INTERNAL_ERROR = 8;
+}
+
+// Bootstrap control-plane request. HCM sends this to the persistent ROS
+// Bridge Manager; the Manager validates the Contract descriptor and ROS
+// binding, then creates one dynamic
+// Flow node with its own data endpoint.
+message RegisterFlowRequest {
+  string flow_id = 1;
+  // Canonical qrb_contracts protobuf full name, including its versioned package.
+  string contract_type_name = 2;
+  Direction direction = 3;
+  string ros_topic = 4;
+  uint32 request_timeout_ms = 5;
+  uint32 sample_timeout_ms = 6;
+  uint32 startup_timeout_ms = 7;
+  QosProfile qos_profile = 8;
+  uint32 qos_depth = 9;
+}
+
+message RegisterFlowResponse {
+  StatusCode status = 1;
+  string data_socket_path = 2;
+  string instance_token = 3;
+  string diagnostic_message = 4;
+}
+
+message UnregisterFlowRequest {
+  string flow_id = 1;
+  // Opaque Manager-issued identity for this registration. It prevents a
+  // delayed request for an old instance from deleting a newer Flow that reused
+  // the same flow_id.
+  string instance_token = 2;
+}
+
+message UnregisterFlowResponse {
+  StatusCode status = 1;
+  string diagnostic_message = 2;
+}
+
+// Sent by the data-session client to bind the Session to the exact Flow
+// registration that created this endpoint. Flow configuration was already
+// validated by REGISTER_FLOW and is not repeated here.
+message ConnectRequest {
+  string flow_id = 1;
+  string instance_token = 2;
+}
+
+message ConnectResponse {
+  StatusCode status = 1;
+  string diagnostic_message = 2;
+}
+
+// Carried by FETCH_RESPONSE with no data and by PUBLISH_RESPONSE.
+message OperationStatus {
+  StatusCode status = 1;
+  string diagnostic_message = 2;
+}
