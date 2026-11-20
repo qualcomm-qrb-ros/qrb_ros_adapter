@@ -19,5 +19,5 @@ target_include_directories(ros_ipc_bridge_unit_tests PRIVATE
 target_link_libraries(ros_ipc_bridge_unit_tests
   qrb_ros_adapter_ros_ipc_bridge_manager)
 ament_target_dependencies(ros_ipc_bridge_unit_tests
-  rclcpp geometry_msgs sensor_msgs ${QRB_ROS_TRANSPORT_DEPENDENCIES})
+  rclcpp geometry_msgs nav_msgs sensor_msgs ${QRB_ROS_TRANSPORT_DEPENDENCIES})
 set_tests_properties(ros_ipc_bridge_unit_tests PROPERTIES LABELS "unit")

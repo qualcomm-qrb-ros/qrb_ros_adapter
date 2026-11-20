@@ -32,19 +32,7 @@ ConversionResult ConvertContractToHcm<PoseHcmContract, PoseHcmDescriptor>(
   if (!AssignHcmString(pose.header().frame_id(), descriptor.frameId))
     return ConversionResult::Failure("frame_id does not fit the HCM Pose descriptor");
   descriptor.timestampNs = timestampNs;
-
-  const auto & value = pose.pose();
-  descriptor.poseWithCovariance.pose.position.x = value.pose().position().x();
-  descriptor.poseWithCovariance.pose.position.y = value.pose().position().y();
-  descriptor.poseWithCovariance.pose.position.z = value.pose().position().z();
-  descriptor.poseWithCovariance.pose.orientation.x = value.pose().orientation().x();
-  descriptor.poseWithCovariance.pose.orientation.y = value.pose().orientation().y();
-  descriptor.poseWithCovariance.pose.orientation.z = value.pose().orientation().z();
-  descriptor.poseWithCovariance.pose.orientation.w = value.pose().orientation().w();
-  descriptor.poseWithCovariance.covariance.fill(0.0);
-  for (int i = 0; i < value.covariance_size(); ++i) {
-    descriptor.poseWithCovariance.covariance[static_cast<std::size_t>(i)] = value.covariance(i);
-  }
+  PoseWithCovarianceToHcm(pose.pose(), descriptor.poseWithCovariance);
   return ConversionResult::Success();
 }
 
@@ -59,19 +47,7 @@ ConversionResult ConvertHcmToContract<PoseHcmContract, PoseHcmDescriptor>(
   if (!time)
     return time;
   pose.mutable_header()->set_frame_id(HcmStringToContract(descriptor.frameId));
-  auto * value = pose.mutable_pose();
-  auto * position = value->mutable_pose()->mutable_position();
-  position->set_x(descriptor.poseWithCovariance.pose.position.x);
-  position->set_y(descriptor.poseWithCovariance.pose.position.y);
-  position->set_z(descriptor.poseWithCovariance.pose.position.z);
-  auto * orientation = value->mutable_pose()->mutable_orientation();
-  orientation->set_x(descriptor.poseWithCovariance.pose.orientation.x);
-  orientation->set_y(descriptor.poseWithCovariance.pose.orientation.y);
-  orientation->set_z(descriptor.poseWithCovariance.pose.orientation.z);
-  orientation->set_w(descriptor.poseWithCovariance.pose.orientation.w);
-  for (double covariance : descriptor.poseWithCovariance.covariance) {
-    value->add_covariance(covariance);
-  }
+  PoseWithCovarianceToContract(descriptor.poseWithCovariance, *pose.mutable_pose());
 
   return ValidatePoseWithCovarianceStamped(pose);
 }

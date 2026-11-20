@@ -8,6 +8,7 @@
 #include <string>
 
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/hcm_converters.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
 
@@ -63,4 +64,15 @@ TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
   EXPECT_FALSE(pose.acceptsDescriptor(cloudDescriptor));
   EXPECT_FALSE(pose.contractToHcm(poseContract, DmaBufView{}, cloudDescriptor));
   EXPECT_FALSE(pose.hcmToContract(cloudDescriptor, poseContract));
+
+  // Pose and Odometry are both inline geometry; neither takes the other's descriptor.
+  const HcmContractBinding & odom = *FindHcmContractBinding(kOdometryContractType);
+  OdometryHcmDescriptor odomDescriptor;
+  PoseHcmDescriptor poseDescriptor;
+  OdometryHcmContract odomContract;
+  EXPECT_TRUE(odom.acceptsDescriptor(odomDescriptor));
+  EXPECT_FALSE(odom.acceptsDescriptor(poseDescriptor));
+  EXPECT_FALSE(pose.acceptsDescriptor(odomDescriptor));
+  EXPECT_FALSE(odom.contractToHcm(odomContract, DmaBufView{}, poseDescriptor));
+  EXPECT_FALSE(odom.hcmToContract(poseDescriptor, odomContract));
 }

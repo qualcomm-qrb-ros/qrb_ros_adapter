@@ -133,3 +133,81 @@ TEST(ContractValidation, RejectsInvalidPosesAndLayoutsThePayloadCannotBack)
     EXPECT_FALSE(result.Diagnostic().empty());
   }
 }
+
+namespace
+{
+
+qrb::contract::nav::v1::Odometry MakeOdometry()
+{
+  qrb::contract::nav::v1::Odometry odom;
+  odom.mutable_header()->mutable_stamp()->set_sec(1);
+  odom.mutable_header()->set_frame_id("odom");
+  odom.set_child_frame_id("base_link");
+  odom.mutable_pose()->mutable_pose()->mutable_orientation()->set_w(1.0);
+  odom.mutable_twist()->mutable_twist()->mutable_linear()->set_x(0.3);
+  return odom;
+}
+
+}  // namespace
+
+// UT-IPC-03: Odometry shares the Pose rules for its pose and adds the same
+// finite / 36-value rules for its twist and a frame_id check for child_frame_id.
+TEST(ContractValidation, RejectsInvalidOdometry)
+{
+  qrb::contract::nav::v1::Odometry full = MakeOdometry();
+  EXPECT_TRUE(ValidateOdometry(full));
+  for (int i = 0; i < 36; ++i) {
+    full.mutable_pose()->add_covariance(0.1);
+    full.mutable_twist()->add_covariance(0.2);
+  }
+  EXPECT_TRUE(ValidateOdometry(full));
+  // An empty child_frame_id is allowed, as an empty frame_id is.
+  qrb::contract::nav::v1::Odometry noChild = MakeOdometry();
+  noChild.clear_child_frame_id();
+  EXPECT_TRUE(ValidateOdometry(noChild));
+
+  using Odom = qrb::contract::nav::v1::Odometry;
+  const struct
+  {
+    const char * name;
+    void (*mutate)(Odom &);
+  } cases[] = {
+      {"MissingPose", [](Odom & o) { o.clear_pose(); }},
+      {"MissingTwist", [](Odom & o) { o.clear_twist(); }},
+      {"ZeroQuaternion",
+          [](Odom & o) { o.mutable_pose()->mutable_pose()->mutable_orientation()->set_w(0.0); }},
+      {"NonFiniteLinear",
+          [](Odom & o) {
+            o.mutable_twist()->mutable_twist()->mutable_linear()->set_y(
+                std::numeric_limits<double>::quiet_NaN());
+          }},
+      {"NonFiniteAngular",
+          [](Odom & o) {
+            o.mutable_twist()->mutable_twist()->mutable_angular()->set_z(
+                std::numeric_limits<double>::infinity());
+          }},
+      {"PartialTwistCovariance",
+          [](Odom & o) {
+            for (int i = 0; i < 35; ++i)
+              o.mutable_twist()->add_covariance(0);
+          }},
+      {"NonFiniteTwistCovariance",
+          [](Odom & o) {
+            for (int i = 0; i < 36; ++i)
+              o.mutable_twist()->add_covariance(
+                  i == 7 ? std::numeric_limits<double>::infinity() : 0);
+          }},
+      {"AbsoluteChildFrameId", [](Odom & o) { o.set_child_frame_id("/base_link"); }},
+      {"AbsoluteFrameId", [](Odom & o) { o.mutable_header()->set_frame_id("/odom"); }},
+      {"NanosecOverflow",
+          [](Odom & o) { o.mutable_header()->mutable_stamp()->set_nanosec(1000000000U); }},
+  };
+  for (const auto & c : cases) {
+    SCOPED_TRACE(c.name);
+    Odom odom = MakeOdometry();
+    c.mutate(odom);
+    const ConversionResult rejected = ValidateOdometry(odom);
+    EXPECT_FALSE(rejected);
+    EXPECT_FALSE(rejected.Diagnostic().empty());
+  }
+}

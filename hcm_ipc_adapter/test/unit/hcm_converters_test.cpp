@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
 
@@ -190,4 +191,83 @@ TEST(HcmConverters, RoundTripEveryFieldAndRejectInvalidValuesOrPayloads)
     EXPECT_FALSE((ConvertHcmToContract<PointCloudHcmContract, PointCloudHcmDescriptor>(
         target.descriptor, out)));
   }
+}
+
+namespace
+{
+
+OdometryHcmContract MakeOdometry()
+{
+  OdometryHcmContract odom;
+  odom.mutable_header()->mutable_stamp()->set_sec(3);
+  odom.mutable_header()->mutable_stamp()->set_nanosec(7);
+  odom.mutable_header()->set_frame_id("odom");
+  odom.set_child_frame_id("base_link");
+  auto * pose = odom.mutable_pose();
+  pose->mutable_pose()->mutable_position()->set_x(4.0);
+  pose->mutable_pose()->mutable_orientation()->set_z(0.6);
+  pose->mutable_pose()->mutable_orientation()->set_w(0.8);
+  auto * twist = odom.mutable_twist();
+  twist->mutable_twist()->mutable_linear()->set_x(0.3);
+  twist->mutable_twist()->mutable_angular()->set_z(-0.1);
+  for (int i = 0; i < 36; ++i) {
+    pose->add_covariance(0.01 * i);
+    twist->add_covariance(0.02 * i);
+  }
+  return odom;
+}
+
+}  // namespace
+
+// UT-HCM-03: Odometry keeps both frames, the pose and the twist with their
+// covariances, and rejects what the fixed-size descriptor cannot hold.
+TEST(HcmConverters, OdometryRoundTripsEveryFieldAndRejectsInvalidValues)
+{
+  const OdometryHcmContract source = MakeOdometry();
+  OdometryHcmDescriptor descriptor;
+  ASSERT_TRUE((ConvertContractToHcm<OdometryHcmContract, OdometryHcmDescriptor>(
+      source, DmaBufView{}, descriptor)));
+  EXPECT_EQ(descriptor.timestampNs, 3000000007u);
+  EXPECT_TRUE(descriptor.frameId == "odom");
+  EXPECT_TRUE(descriptor.childFrameId == "base_link");
+  EXPECT_DOUBLE_EQ(descriptor.poseWithCovariance.pose.position.x, 4.0);
+  EXPECT_DOUBLE_EQ(descriptor.poseWithCovariance.pose.orientation.w, 0.8);
+  EXPECT_DOUBLE_EQ(descriptor.twistWithCovariance.twist.linear.x, 0.3);
+  EXPECT_DOUBLE_EQ(descriptor.twistWithCovariance.twist.angular.z, -0.1);
+  EXPECT_DOUBLE_EQ(descriptor.poseWithCovariance.covariance[35], 0.35);
+  EXPECT_DOUBLE_EQ(descriptor.twistWithCovariance.covariance[35], 0.70);
+
+  OdometryHcmContract back;
+  back.set_child_frame_id("stale");
+  ASSERT_TRUE((ConvertHcmToContract<OdometryHcmContract, OdometryHcmDescriptor>(descriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), source.SerializeAsString());
+
+  // A rejected message leaves the descriptor untouched.
+  OdometryHcmDescriptor untouched;
+  ASSERT_EQ(untouched.childFrameId.Assign("untouched"), QC::QC_STATUS_OK);
+  OdometryHcmContract invalid = MakeOdometry();
+  invalid.mutable_twist()->mutable_twist()->mutable_linear()->set_x(
+      std::numeric_limits<double>::quiet_NaN());
+  const ConversionResult in = ConvertContractToHcm<OdometryHcmContract, OdometryHcmDescriptor>(
+      invalid, DmaBufView{}, untouched);
+  EXPECT_FALSE(in);
+  EXPECT_FALSE(in.Diagnostic().empty());
+  EXPECT_TRUE(untouched.childFrameId == "untouched");
+
+  // FrameId_t is fixed-size: either frame longer than it is rejected, never truncated.
+  const std::string tooLong(QRB::Memory::QRB_FRAME_ID_MAX_LEN + 1, 'f');
+  OdometryHcmContract longFrame = MakeOdometry();
+  longFrame.mutable_header()->set_frame_id(tooLong);
+  OdometryHcmContract longChild = MakeOdometry();
+  longChild.set_child_frame_id(tooLong);
+  for (const OdometryHcmContract * rejected : {&longFrame, &longChild}) {
+    EXPECT_FALSE((ConvertContractToHcm<OdometryHcmContract, OdometryHcmDescriptor>(
+        *rejected, DmaBufView{}, untouched)));
+    EXPECT_TRUE(untouched.childFrameId == "untouched");
+  }
+
+  // A non-finite twist covariance produced on the HCM side must not reach ROS.
+  descriptor.twistWithCovariance.covariance[3] = std::numeric_limits<double>::infinity();
+  OdometryHcmContract out;
+  EXPECT_FALSE((ConvertHcmToContract<OdometryHcmContract, OdometryHcmDescriptor>(descriptor, out)));
 }

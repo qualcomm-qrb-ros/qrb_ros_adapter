@@ -11,9 +11,11 @@
 
 #include <cstdint>
 #include <lib_mem_dmabuf/dmabuf.hpp>
+#include <limits>
 #include <memory>
 #include <sensor_msgs/msg/point_field.hpp>
 
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/odometry_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
 
 using namespace qrb::adapter;
@@ -160,4 +162,49 @@ TEST(PointCloudRosConverter, MapsMetadataBindsTheDmaBufAndRejectsWhatItCannotBac
   EXPECT_FALSE(received.Bind(unassigned, 32));  // already bound
   EXPECT_FALSE(received.Assign(nullptr));
   EXPECT_EQ(unassigned, nullptr);
+}
+
+// UT-ROS-02: nav_msgs/Odometry maps 1:1 to the Contract, both frames, pose and
+// twist with their covariances; an invalid value is rejected in either direction.
+TEST(OdometryRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
+{
+  OdometryRosMessage ros;
+  ros.header.stamp.sec = 5;
+  ros.header.stamp.nanosec = 6;
+  ros.header.frame_id = "odom";
+  ros.child_frame_id = "base_link";
+  ros.pose.pose.position.x = 1.0;
+  ros.pose.pose.orientation.w = 1.0;
+  ros.twist.twist.linear.x = 0.3;
+  ros.twist.twist.angular.z = -0.1;
+  for (std::size_t i = 0; i < 36; ++i) {
+    ros.pose.covariance[i] = 0.01 * static_cast<double>(i);
+    ros.twist.covariance[i] = 0.02 * static_cast<double>(i);
+  }
+
+  OdometryRosContract contract;
+  ASSERT_TRUE(OdometryRosConversion::RosToContract(ros, contract));
+  EXPECT_EQ(contract.header().frame_id(), "odom");
+  EXPECT_EQ(contract.child_frame_id(), "base_link");
+  EXPECT_EQ(contract.header().stamp().nanosec(), 6u);
+  EXPECT_DOUBLE_EQ(contract.twist().twist().linear().x(), 0.3);
+  ASSERT_EQ(contract.twist().covariance_size(), 36);
+  EXPECT_DOUBLE_EQ(contract.twist().covariance(35), 0.70);
+
+  OdometryRosMessage back;
+  ASSERT_TRUE(OdometryRosConversion::ContractToRos(contract, back));
+  EXPECT_EQ(back, ros);
+
+  // An empty Contract covariance means unknown; ROS gets the zero matrix.
+  contract.mutable_twist()->clear_covariance();
+  ASSERT_TRUE(OdometryRosConversion::ContractToRos(contract, back));
+  EXPECT_DOUBLE_EQ(back.twist.covariance[35], 0.0);
+
+  OdometryRosMessage invalid = ros;
+  invalid.twist.twist.angular.x = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(OdometryRosConversion::RosToContract(invalid, contract));
+  OdometryRosContract badContract;
+  ASSERT_TRUE(OdometryRosConversion::RosToContract(ros, badContract));
+  badContract.set_child_frame_id("/base_link");
+  EXPECT_FALSE(OdometryRosConversion::ContractToRos(badContract, back));
 }

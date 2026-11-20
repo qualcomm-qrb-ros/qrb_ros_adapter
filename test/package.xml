@@ -16,6 +16,7 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>qrb_ros_transport_point_cloud2_type</depend>
   <depend>qrb_ros_adapter</depend>

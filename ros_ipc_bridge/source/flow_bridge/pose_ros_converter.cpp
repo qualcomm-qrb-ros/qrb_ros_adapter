@@ -4,6 +4,7 @@
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_ros_converter.hpp"
 
 #include "qrb_ros_adapter/ipc_runtime/contract_validation.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/ros_contract_geometry.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/ros_contract_header.hpp"
 
 namespace qrb::adapter
@@ -14,18 +15,7 @@ ConversionResult PoseRosConversion::RosToContract(const PoseRosMessage & source,
 {
   target.Clear();
   HeaderToContract(source.header, *target.mutable_header());
-  auto * value = target.mutable_pose();
-  auto * position = value->mutable_pose()->mutable_position();
-  position->set_x(source.pose.pose.position.x);
-  position->set_y(source.pose.pose.position.y);
-  position->set_z(source.pose.pose.position.z);
-  auto * orientation = value->mutable_pose()->mutable_orientation();
-  orientation->set_x(source.pose.pose.orientation.x);
-  orientation->set_y(source.pose.pose.orientation.y);
-  orientation->set_z(source.pose.pose.orientation.z);
-  orientation->set_w(source.pose.pose.orientation.w);
-  for (double covariance : source.pose.covariance)
-    value->add_covariance(covariance);
+  PoseWithCovarianceToContract(source.pose, *target.mutable_pose());
 
   return ValidatePoseWithCovarianceStamped(target);
 }
@@ -38,19 +28,7 @@ ConversionResult PoseRosConversion::ContractToRos(const PoseRosContract & source
     return validation;
 
   HeaderToRos(source.header(), target.header);
-
-  const auto & value = source.pose();
-  target.pose.pose.position.x = value.pose().position().x();
-  target.pose.pose.position.y = value.pose().position().y();
-  target.pose.pose.position.z = value.pose().position().z();
-  target.pose.pose.orientation.x = value.pose().orientation().x();
-  target.pose.pose.orientation.y = value.pose().orientation().y();
-  target.pose.pose.orientation.z = value.pose().orientation().z();
-  target.pose.pose.orientation.w = value.pose().orientation().w();
-  target.pose.covariance.fill(0.0);
-  for (int i = 0; i < value.covariance_size(); ++i) {
-    target.pose.covariance[static_cast<std::size_t>(i)] = value.covariance(i);
-  }
+  PoseWithCovarianceToRos(source.pose(), target.pose);
   return ConversionResult::Success();
 }
 

@@ -36,6 +36,7 @@ find_package(rclcpp_components REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(qrb_ros_adapter_runtime ${PROJECT_VERSION} REQUIRED)
 set(QRB_ROS_TRANSPORT_DEPENDENCIES
@@ -52,6 +53,7 @@ file(GLOB _qrb_ros_converter_sources CONFIGURE_DEPENDS
 add_library(qrb_ros_adapter_ros_flow_bridge SHARED
   source/flow_bridge/ros_flow_bridge_base.cpp
   source/flow_bridge/ros_contract_header.cpp
+  source/flow_bridge/ros_contract_geometry.cpp
   source/flow_bridge/ros_dma_buffer_pool.cpp
   ${_qrb_ros_converter_sources})
 
@@ -70,6 +72,7 @@ ament_target_dependencies(qrb_ros_adapter_ros_flow_bridge PUBLIC
   builtin_interfaces
   std_msgs
   geometry_msgs
+  nav_msgs
   sensor_msgs
   ${QRB_ROS_TRANSPORT_DEPENDENCIES})
 
@@ -116,6 +119,7 @@ ament_export_dependencies(
   builtin_interfaces
   std_msgs
   geometry_msgs
+  nav_msgs
   sensor_msgs
   qrb_ros_adapter_runtime
   ${QRB_ROS_TRANSPORT_DEPENDENCIES})

@@ -56,6 +56,7 @@ add_library(QCNodeIpcAdapter OBJECT
   source/ipc_adapter_node/hcm_ipc_adapter_config.cpp
   source/ipc_adapter_node/hcm_ipc_adapter_node.cpp
   source/flow_client/hcm_converter_registry.cpp
+  source/flow_client/hcm_geometry_conversion.cpp
   ${_hcm_contract_converter_sources})
 
 set_target_properties(QCNodeIpcAdapter PROPERTIES
