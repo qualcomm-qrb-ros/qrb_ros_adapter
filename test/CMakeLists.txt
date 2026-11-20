@@ -25,6 +25,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(qrb_ros_transport_point_cloud2_type REQUIRED)
 find_package(qrb_ros_adapter REQUIRED)
@@ -37,7 +38,7 @@ target_link_libraries(qrb_ros_adapter_ros_stream_probe_node PUBLIC
   nlohmann_json::nlohmann_json
   qrb_ros_adapter::ros_flow_bridge)
 ament_target_dependencies(qrb_ros_adapter_ros_stream_probe_node PUBLIC
-  ament_index_cpp rclcpp rclcpp_components geometry_msgs sensor_msgs
+  ament_index_cpp rclcpp rclcpp_components geometry_msgs nav_msgs sensor_msgs
   qrb_ros_transport_point_cloud2_type)
 rclcpp_components_register_nodes(qrb_ros_adapter_ros_stream_probe_node
   "qrb::adapter::stream_probe::RosStreamProbeNode")

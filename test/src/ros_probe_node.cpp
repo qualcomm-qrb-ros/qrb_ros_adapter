@@ -115,6 +115,67 @@ struct RosProbeSample<adapter::PoseRosMessage>
   }
 };
 
+// --- nav.v1.Odometry (inline) -------------------------------------------------
+
+/**
+ * The probe fills the pose covariance; the pose is the identity,
+ * the twist is zero and its covariance carries a fixed marker. The layout is
+ * the one HcmProbeSample<> uses, so either side checks what the other sends.
+ */
+template <>
+struct RosProbeSample<adapter::OdometryRosMessage>
+{
+  using Message = adapter::OdometryRosMessage;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr const char * kChildFrameId = "stream_probe_base";
+  static constexpr double kTwistCovarianceMarker = 0.5;
+
+  class Source
+  {
+  public:
+    Source(std::uint64_t, std::uint32_t, std::uint32_t streamTag) : streamTag_(streamTag) {}
+
+    SendOutcome Next(std::uint64_t sequence,
+        std::unique_ptr<Message> & out,
+        std::uint64_t & sendTimeNs)
+    {
+      out = std::make_unique<Message>();
+      out->header.frame_id = kFrameId;
+      out->child_frame_id = kChildFrameId;
+      out->pose.pose.orientation.w = 1.0;
+      out->twist.covariance.fill(kTwistCovarianceMarker);
+      const std::uint64_t now = MonotonicNowNs();
+      sendTimeNs = now;
+      out->header.stamp.sec = static_cast<std::int32_t>(now / 1000000000ull);
+      out->header.stamp.nanosec = static_cast<std::uint32_t>(now % 1000000000ull);
+      StampDoubles(
+          out->pose.covariance.data(), out->pose.covariance.size(), streamTag_, sequence, now);
+      return SendOutcome::kSent;
+    }
+
+    std::uint64_t PayloadBytes() const { return sizeof(Message{}.pose.covariance); }
+
+  private:
+    std::uint32_t streamTag_;
+  };
+
+  static FrameReading Check(const Message & odom,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(odom.pose.covariance);
+    FrameReading reading =
+        CheckDoubles(odom.pose.covariance.data(), odom.pose.covariance.size(), streamTag);
+    if (reading.check == FrameCheck::kOk &&
+        (odom.header.frame_id != kFrameId || odom.child_frame_id != kChildFrameId ||
+            odom.pose.pose.orientation.w != 1.0 ||
+            odom.twist.covariance[0] != kTwistCovarianceMarker ||
+            odom.twist.covariance[35] != kTwistCovarianceMarker))
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+};
+
 // --- sensor.v1.PointCloud2 (DMA-BUF) ------------------------------------------
 
 /**

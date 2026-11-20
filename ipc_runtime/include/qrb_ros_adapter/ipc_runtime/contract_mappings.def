@@ -5,11 +5,13 @@
 // expanded independently by the shared, HCM and ROS registries.
 
 #if defined( QRB_CONTRACT_MAPPING_INCLUDE_HCM_HEADERS )
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
 #endif
 
 #if defined( QRB_CONTRACT_MAPPING_INCLUDE_ROS_HEADERS )
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/odometry_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_ros_converter.hpp"
 #endif
@@ -26,4 +28,10 @@ QRB_CONTRACT_MAPPING( PointCloud,
     ::qrb::contract::sensor::v1::PointCloud2,
     ::qrb::adapter::PointCloudHcmDescriptor,
     ::qrb::adapter::PointCloudRosMessage, "pointcloud_bridge" )
+
+QRB_CONTRACT_MAPPING( Odometry,
+    "qrb.contract.nav.v1.Odometry", Inline,
+    ::qrb::contract::nav::v1::Odometry,
+    ::qrb::adapter::OdometryHcmDescriptor,
+    ::qrb::adapter::OdometryRosMessage, "odometry_bridge" )
 #endif

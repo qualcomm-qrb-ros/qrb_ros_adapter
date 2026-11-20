@@ -1,0 +1,10 @@
+{
+  "static": {
+    "name": "stream_probe_adapter",
+    "id": 0,
+    "contract_type": "qrb.contract.nav.v1.Odometry",
+    "direction": 1,
+    "ros_topic": "/qrb_ros_adapter/stream_probe/odom",
+    "qos_profile": { "reliability": "best_effort", "durability": "volatile", "depth": 5 }
+  }
+}

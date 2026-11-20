@@ -4,11 +4,15 @@
 #ifndef QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_HCM_CONVERSION_HPP
 #define QRB_ROS_ADAPTER_HCM_IPC_ADAPTER_FLOW_CLIENT_HCM_CONVERSION_HPP
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 
 #include "QC/Common/QCString.hpp"
+#include "QRB/Memory/Common/Types.hpp"
+#include "qrb/contract/geometry/v1/pose_with_covariance.pb.h"
+#include "qrb/contract/geometry/v1/twist_with_covariance.pb.h"
 #include "qrb_ros_adapter/ipc_runtime/conversion_result.hpp"
 
 namespace qrb::adapter
@@ -35,6 +39,23 @@ std::string HcmStringToContract(const QC::QCString<N> & source)
 {
   return std::string(source.Data(), source.Size());
 }
+
+/**
+ * @brief Field-for-field copies between the Contract geometry messages and the
+ * qrb_contracts types, shared by the inline geometry converters.
+ *
+ * The Contract side must already be validated: its covariance is empty (copied
+ * as the zero matrix, "unknown") or holds the 36 values the array holds. The
+ * HCM to Contract direction always writes all 36 values.
+ */
+void PoseWithCovarianceToHcm(const ::qrb::contract::geometry::v1::PoseWithCovariance & source,
+    QRB::Memory::PoseWithCovariance_t & target);
+void PoseWithCovarianceToContract(const QRB::Memory::PoseWithCovariance_t & source,
+    ::qrb::contract::geometry::v1::PoseWithCovariance & target);
+void TwistWithCovarianceToHcm(const ::qrb::contract::geometry::v1::TwistWithCovariance & source,
+    QRB::Memory::TwistWithCovariance_t & target);
+void TwistWithCovarianceToContract(const QRB::Memory::TwistWithCovariance_t & source,
+    ::qrb::contract::geometry::v1::TwistWithCovariance & target);
 
 /** @brief Convert a Contract and optional external payload to an HCM descriptor. */
 template <typename ContractT, typename DescriptorT>

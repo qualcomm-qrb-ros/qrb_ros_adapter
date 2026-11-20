@@ -144,6 +144,62 @@ struct HcmProbeSample<adapter::PoseHcmDescriptor>
   }
 };
 
+// --- nav.v1.Odometry (inline) -------------------------------------------------
+
+/**
+ * The probe fills the pose covariance; the pose is the identity,
+ * the twist is zero and its covariance carries a fixed marker, so a sample that
+ * mixes up pose and twist is caught as a bad layout.
+ */
+template <>
+struct HcmProbeSample<adapter::OdometryHcmDescriptor>
+{
+  using Descriptor = adapter::OdometryHcmDescriptor;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr const char * kChildFrameId = "stream_probe_base";
+  static constexpr double kTwistCovarianceMarker = 0.5;
+
+  static std::string CheckPayloadBytes(std::uint64_t) { return {}; }
+
+  static std::uint64_t SentBytes(const HcmSenderState &)
+  {
+    return sizeof(std::declval<const Descriptor &>().poseWithCovariance.covariance);
+  }
+
+  static HcmStampResult Stamp(Descriptor & odom, HcmSenderState & state, std::uint64_t sequence)
+  {
+    if (odom.frameId != kFrameId)
+      (void)odom.frameId.Assign(kFrameId);  // fits FrameId_t
+    if (odom.childFrameId != kChildFrameId)
+      (void)odom.childFrameId.Assign(kChildFrameId);       // fits FrameId_t
+    odom.poseWithCovariance.pose = QRB::Memory::Pose_t{};  // identity
+    odom.twistWithCovariance.twist = QRB::Memory::Twist_t{};
+    odom.twistWithCovariance.covariance.fill(kTwistCovarianceMarker);
+    const std::uint64_t now = MonotonicNowNs();
+    state.lastSendNs = now;
+    odom.timestampNs = now;
+    StampDoubles(odom.poseWithCovariance.covariance.data(),
+        odom.poseWithCovariance.covariance.size(), state.streamTag, sequence, now);
+    return HcmStampResult::kOk;
+  }
+
+  static FrameReading Check(const Descriptor & odom,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(odom.poseWithCovariance.covariance);
+    FrameReading reading = CheckDoubles(odom.poseWithCovariance.covariance.data(),
+        odom.poseWithCovariance.covariance.size(), streamTag);
+    if (reading.check == FrameCheck::kOk &&
+        (odom.frameId != kFrameId || odom.childFrameId != kChildFrameId ||
+            odom.poseWithCovariance.pose.orientation.w != 1.0 ||
+            odom.twistWithCovariance.covariance[0] != kTwistCovarianceMarker ||
+            odom.twistWithCovariance.covariance[35] != kTwistCovarianceMarker))
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+};
+
 // --- sensor.v1.PointCloud2 (DMA-BUF) ------------------------------------------
 
 /** One row of `payload_bytes / 16` points x, y, z, intensity (FLOAT32). */

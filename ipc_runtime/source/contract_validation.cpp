@@ -29,6 +29,39 @@ bool IsFinitePose(const qrb::contract::geometry::v1::Pose & pose)
          std::isfinite(orientation.w());
 }
 
+bool IsFiniteVector3(const qrb::contract::geometry::v1::Vector3 & vector)
+{
+  return std::isfinite(vector.x()) && std::isfinite(vector.y()) && std::isfinite(vector.z());
+}
+
+/** @brief A 6x6 covariance is either unknown (empty) or 36 finite values. */
+ConversionResult ValidateCovariance(const google::protobuf::RepeatedField<double> & covariance,
+    const char * sizeMessage,
+    const char * finiteMessage)
+{
+  if (covariance.size() != 0 && covariance.size() != 36)
+    return Fail(sizeMessage);
+  for (double value : covariance) {
+    if (!std::isfinite(value))
+      return Fail(finiteMessage);
+  }
+  return ConversionResult::Success();
+}
+
+/** @brief The rules for a PoseWithCovariance, wherever a Contract embeds one. */
+ConversionResult ValidatePoseWithCovariance(
+    const qrb::contract::geometry::v1::PoseWithCovariance & value)
+{
+  if (!value.has_pose() || !IsFinitePose(value.pose()))
+    return Fail("pose contains missing or non-finite values");
+  const auto & orientation = value.pose().orientation();
+  if (orientation.x() == 0.0 && orientation.y() == 0.0 && orientation.z() == 0.0 &&
+      orientation.w() == 0.0)
+    return Fail("orientation quaternion must be non-zero");
+  return ValidateCovariance(value.covariance(), "covariance must be empty or contain 36 values",
+      "covariance contains a non-finite value");
+}
+
 std::uint32_t PointFieldElementSize(qrb::contract::sensor::v1::PointFieldType type)
 {
   using namespace qrb::contract::sensor::v1;
@@ -81,21 +114,33 @@ ConversionResult ValidatePoseWithCovarianceStamped(
     return header;
   if (!pose.has_pose())
     return Fail("pose is required");
+  return ValidatePoseWithCovariance(pose.pose());
+}
 
-  const auto & value = pose.pose();
-  if (!value.has_pose() || !IsFinitePose(value.pose()))
-    return Fail("pose contains missing or non-finite values");
-  const auto & orientation = value.pose().orientation();
-  if (orientation.x() == 0.0 && orientation.y() == 0.0 && orientation.z() == 0.0 &&
-      orientation.w() == 0.0)
-    return Fail("orientation quaternion must be non-zero");
-  if (value.covariance_size() != 0 && value.covariance_size() != 36)
-    return Fail("covariance must be empty or contain 36 values");
-  for (double covariance : value.covariance()) {
-    if (!std::isfinite(covariance))
-      return Fail("covariance contains a non-finite value");
-  }
-  return ConversionResult::Success();
+ConversionResult ValidateOdometry(const qrb::contract::nav::v1::Odometry & odometry)
+{
+  ConversionResult header = ValidateHeader(odometry.header());
+  if (!header)
+    return header;
+  ConversionResult childFrameId = ValidateFrameId(odometry.child_frame_id());
+  if (!childFrameId)
+    return ConversionResult::Failure("child_frame_id: " + childFrameId.Diagnostic());
+
+  if (!odometry.has_pose())
+    return Fail("pose is required");
+  ConversionResult pose = ValidatePoseWithCovariance(odometry.pose());
+  if (!pose)
+    return pose;
+
+  if (!odometry.has_twist())
+    return Fail("twist is required");
+  const auto & value = odometry.twist();
+  if (!value.has_twist() || !IsFiniteVector3(value.twist().linear()) ||
+      !IsFiniteVector3(value.twist().angular()))
+    return Fail("twist contains missing or non-finite values");
+  return ValidateCovariance(value.covariance(),
+      "twist covariance must be empty or contain 36 values",
+      "twist covariance contains a non-finite value");
 }
 
 ConversionResult ValidatePointCloud2(const qrb::contract::sensor::v1::PointCloud2 & cloud,

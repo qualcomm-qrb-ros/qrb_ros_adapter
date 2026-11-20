@@ -49,6 +49,13 @@ The Flow is set in the QCNode static config:
 | `ros_topic` | yes | ROS topic. |
 | `qos_profile` | no | `reliability` (`reliable`/`best_effort`), `durability` (`volatile`/`transient_local`), `depth` (1–32); defaults to `rclcpp::QoS(10)`. |
 
+The supported Contracts, each with its HCM descriptor, ROS message and payload
+class, are the entries of
+[contract_mappings.def](ipc_runtime/include/qrb_ros_adapter/ipc_runtime/contract_mappings.def).
+A DMA-BUF Contract carries its payload in a DMA-BUF behind the descriptor; an
+inline Contract travels in the IPC frame and needs no buffer. A frame name
+longer than the HCM descriptor holds is rejected, not truncated.
+
 Monitoring reports `sessionConnected`, `frameCount`, `errorCount`,
 `last/average/min/maxLatencyNs` and `noDataCount`.
 
@@ -92,12 +99,12 @@ ROS probe of the [Test](#test) takes `<setting>:=<value>` on its launch.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `contract_type`, `direction`, `ros_topic` | `PointCloud2`, `0`, `/qrb_ros_adapter/sample/points` | IpcAdapter: the static config fields above. |
+| `contract_type`, `direction`, `ros_topic` | `PointCloud2`, `0`, per Contract | IpcAdapter: the static config fields above. |
 | `reliability`, `durability`, `depth` | `rclcpp::QoS(10)` | IpcAdapter: the `qos_profile` fields above. |
 | `adapter_config` | StreamProbe: required; ROS probe: `adapter_h2r.json` | All: a static config file; on IpcAdapter it replaces the two rows above. |
 | `input_topic` / `output_topic` | | IpcAdapter, StreamProbe: takes frames from / gives frames to another sample. |
 | `fps` | `30` | All: frames per second a sender sends, `0` for no pause. |
-| `payload_bytes` | `1048576` | All: PointCloud2 payload a sender sends. |
+| `payload_bytes` | `1048576` | All: DMA-BUF payload a sender sends; inline Contracts ignore it. |
 | `duration` | `0` | ROS probe: seconds to run, `0` until stopped. |
 | `log` | | ROS probe: text log file. |
 
@@ -137,6 +144,9 @@ qcrun QCNodeSampleApp -T 10 \
   -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_r2h.json -k input_topic -v /frames \
   -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_r2h.json -k output_topic -v /frames
 ```
+
+For another Contract, use its `adapter_<contract>_{h2r,r2h}.json` from the same
+directory, on both sides and in the same commands.
 
 The run passes when the HCM side prints `probe PASS`. The probe settings are
 in [Sample settings](#sample-settings).

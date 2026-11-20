@@ -5,10 +5,10 @@
  * @file ContractFrame.hpp
  * @brief The Contract descriptor a sample hands to the IPC Adapter, and a pool of them.
  *
- * A ContractFrame owns one qrb_contracts descriptor. A DMA-BUF Contract (PointCloud2) gets a
- * buffer of its own from the system DMA heap, mapped for the CPU; an inline Contract (Pose)
- * needs none. Samples pass frames to each other as std::shared_ptr<ContractFrame> over the
- * DataBroker: a frame is free again once the only reference left is the pool's.
+ * A ContractFrame owns one qrb_contracts descriptor. A DMA-BUF Contract gets a buffer of its own
+ * from the system DMA heap, mapped for the CPU; an inline Contract needs none.
+ * Samples pass frames to each other as std::shared_ptr<ContractFrame> over the DataBroker: a frame
+ * is free again once the only reference left is the pool's.
  */
 
 #ifndef QRB_ROS_ADAPTER_SAMPLE_CONTRACT_FRAME_HPP
