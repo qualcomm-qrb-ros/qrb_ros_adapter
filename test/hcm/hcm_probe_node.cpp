@@ -445,10 +445,7 @@ struct HcmProbeSample<adapter::JointStateHcmDescriptor>
   }
 
 private:
-  static std::string JointName(std::uint32_t index)
-  {
-    return "joint_" + std::to_string(index);
-  }
+  static std::string JointName(std::uint32_t index) { return "joint_" + std::to_string(index); }
 
   static bool UsableBuffer(const Descriptor & descriptor, int & fd)
   {

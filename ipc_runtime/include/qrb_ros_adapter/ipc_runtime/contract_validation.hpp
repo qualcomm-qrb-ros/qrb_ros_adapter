@@ -44,7 +44,8 @@ ConversionResult ValidateTwistStamped(const qrb::contract::geometry::v1::TwistSt
  */
 ConversionResult ValidateTFMessage(const qrb::contract::tf2::v1::TFMessage & message);
 
-/** @brief Checks the header, joint count/names and finite measurement arrays, each empty or name-sized. */
+/** @brief Checks the header, joint count/names and finite measurement arrays, each empty or
+ * name-sized. */
 ConversionResult ValidateJointState(const qrb::contract::sensor::v1::JointState & message);
 
 ConversionResult ValidatePointCloud2(const qrb::contract::sensor::v1::PointCloud2 & cloud,

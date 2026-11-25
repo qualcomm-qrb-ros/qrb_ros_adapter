@@ -486,7 +486,8 @@ struct HeapJointDescriptor
 // UT-HCM-06: JointState keeps the parallel arrays and bounds its aligned host records.
 TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrames)
 {
-  for (std::uint32_t count : {0u, 3u, static_cast<std::uint32_t>(contract_limits::kMaxJointCount)}) {
+  for (std::uint32_t count :
+      {0u, 3u, static_cast<std::uint32_t>(contract_limits::kMaxJointCount)}) {
     SCOPED_TRACE(count);
     const JointStateHcmContract source = MakeJointState(count);
     HeapJointDescriptor heap(count);
@@ -513,8 +514,8 @@ TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrame
   const JointStateHcmContract source = MakeJointState(3);
   ASSERT_TRUE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
       source, DmaBufView{}, heap.descriptor)));
-  const std::string before(static_cast<const char *>(heap.descriptor.GetDataPtr()),
-      heap.descriptor.validSize);
+  const std::string before(
+      static_cast<const char *>(heap.descriptor.GetDataPtr()), heap.descriptor.validSize);
   JointStateHcmContract missing = source;
   missing.clear_velocity();
   JointStateHcmContract invalid = source;
@@ -528,7 +529,8 @@ TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrame
         *rejected, DmaBufView{}, heap.descriptor)));
     EXPECT_EQ(heap.descriptor.jointCount, 3u);
     EXPECT_EQ(std::string(static_cast<const char *>(heap.descriptor.GetDataPtr()),
-                  heap.descriptor.validSize), before);
+                  heap.descriptor.validSize),
+        before);
   }
   HeapJointDescriptor small(2);
   EXPECT_FALSE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
@@ -542,12 +544,12 @@ TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrame
 
   JointStateHcmContract out = source;
   --heap.descriptor.validSize;
-  EXPECT_FALSE((ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(
-      heap.descriptor, out)));
+  EXPECT_FALSE(
+      (ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(heap.descriptor, out)));
   EXPECT_EQ(out.SerializeAsString(), source.SerializeAsString());
   ++heap.descriptor.validSize;
   heap.storage[1].velocity = std::numeric_limits<double>::infinity();
-  EXPECT_FALSE((ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(
-      heap.descriptor, out)));
+  EXPECT_FALSE(
+      (ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(heap.descriptor, out)));
   EXPECT_EQ(out.SerializeAsString(), source.SerializeAsString());
 }

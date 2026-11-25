@@ -206,7 +206,8 @@ ConversionResult ValidateJointState(const qrb::contract::sensor::v1::JointState 
       {message.effort(), "effort"}};
   for (const auto & array : arrays) {
     if (!array.values.empty() && array.values.size() != message.name_size())
-      return ConversionResult::Failure(std::string(array.name) + " must be empty or match name size");
+      return ConversionResult::Failure(
+          std::string(array.name) + " must be empty or match name size");
     for (double value : array.values) {
       if (!std::isfinite(value))
         return ConversionResult::Failure(std::string(array.name) + " contains a non-finite value");
