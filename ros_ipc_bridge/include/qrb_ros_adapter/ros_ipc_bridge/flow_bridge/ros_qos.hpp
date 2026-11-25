@@ -13,7 +13,7 @@ namespace qrb::adapter
 {
 
 /**
- * ROS-owned DMA-BUFs of one HCM_TO_ROS Flow: the DDS queue, one buffer being
+ * Host storage pool of one HCM_TO_ROS Flow: the publisher's KEEP_LAST history, one buffer being
  * copied into and one spare.
  */
 inline std::size_t RosDmaBufferPoolSize(const QosProfile & profile)

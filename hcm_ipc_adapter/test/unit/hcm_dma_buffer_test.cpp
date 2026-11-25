@@ -17,9 +17,9 @@ using namespace qrb::adapter;
 
 namespace sensor_proto = ::qrb::contract::sensor::v1;
 
-// UT-HCM-04: the inherited buffer is classified before the CPU touches it. Only a DMA-BUF of
-// this process is synced; heap memory and an fd of -1 are not.
-TEST(HcmDmaBuffer, ClassifiesTheInheritedBufferAndSyncsOnlyDmaBufs)
+// The inherited buffer is classified before the CPU touches it; sync calls with an
+// fd of -1 succeed without work.
+TEST(HcmDmaBuffer, ClassifiesTheInheritedBufferAndNoOpsSyncForFdMinusOne)
 {
   char storage[64] = {};
   int fd = 0;
@@ -76,7 +76,7 @@ TEST(HcmDmaBuffer, ClassifiesTheInheritedBufferAndSyncsOnlyDmaBufs)
   EXPECT_EQ(EndDmaBufCpuWrite(-1), Status::kOk);
 }
 
-// UT-HCM-06: a DmaBuf Contract may be received into heap storage. Such a target is
+// A DmaBuf Contract may be received into heap storage. Such a target is
 // classified kHostMemory with no fd, and the PointCloud converter fills and reads it.
 TEST(HcmDmaBuffer, PointCloudDescriptorAcceptsHeapStorage)
 {

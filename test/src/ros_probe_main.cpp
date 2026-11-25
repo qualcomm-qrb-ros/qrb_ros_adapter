@@ -40,7 +40,7 @@ int main(int argc, char ** argv)
         "                  1: ROS to HCM, this side sends), contract_type, ros_topic, qos_profile\n"
         "  fps             frames per second of a sender, 0: unlimited (30)\n"
         "  payload_bytes   payload of each frame this side sends (1048576)\n"
-        "  buffer_bytes    the HCM receiver's buffer; ignored on this side\n"
+        "  buffer_bytes    DMA buffer size of the HCM receiver (R2H); ignored on this side\n"
         "  duration        seconds to run, 0: until a signal (0)\n"
         "  warmup          seconds a receiver does not measure (0)\n"
         "  log             text log, empty: none: a line per frame sent or received,\n"

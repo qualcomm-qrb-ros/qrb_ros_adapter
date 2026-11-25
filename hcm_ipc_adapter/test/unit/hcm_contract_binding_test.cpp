@@ -5,18 +5,23 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/hcm_converters.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/joint_state_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_array_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_stamped_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/tf_message_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/twist_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/vector3_stamped_hcm_converter.hpp"
 
 using namespace qrb::adapter;
 
-// UT-HCM-02: every shared Contract has exactly one complete HCM binding, and the
+// Every shared Contract has exactly one complete HCM binding, and the
 // descriptor factory creates, by Contract name, descriptors only that binding
 // accepts.
 TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
@@ -63,7 +68,7 @@ TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
   EXPECT_FALSE(pose.contractToHcm(poseContract, DmaBufView{}, cloudDescriptor));
   EXPECT_FALSE(pose.hcmToContract(cloudDescriptor, poseContract));
 
-  // Pose and Odometry are both inline geometry; neither takes the other's descriptor.
+  // Inline Contracts do not take each other's descriptors, even when their shapes are similar.
   const HcmContractBinding & odom = *FindHcmContractBinding(kOdometryContractType);
   OdometryHcmDescriptor odomDescriptor;
   PoseHcmDescriptor poseDescriptor;
@@ -74,7 +79,7 @@ TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
   EXPECT_FALSE(odom.contractToHcm(odomContract, DmaBufView{}, poseDescriptor));
   EXPECT_FALSE(odom.hcmToContract(poseDescriptor, odomContract));
 
-  // Twist and Odometry are inline geometry too; neither takes the other's descriptor.
+  // Each Inline Contract binding rejects the other Inline descriptors.
   const HcmContractBinding & twist = *FindHcmContractBinding(kTwistStampedContractType);
   TwistHcmDescriptor twistDescriptor;
   TwistHcmContract twistContract;
@@ -84,7 +89,7 @@ TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
   EXPECT_FALSE(twist.contractToHcm(twistContract, DmaBufView{}, odomDescriptor));
   EXPECT_FALSE(twist.hcmToContract(odomDescriptor, twistContract));
 
-  // TFMessage is inline geometry too; neither takes the other's descriptor.
+  // Each Inline Contract binding rejects the other Inline descriptors.
   const HcmContractBinding & tf = *FindHcmContractBinding(kTFMessageContractType);
   TFMessageHcmDescriptor tfDescriptor;
   TFMessageHcmContract tfContract;
@@ -103,4 +108,70 @@ TEST(HcmContractBinding, EveryContractHasOneCompleteBindingAndAMatchingFactory)
   EXPECT_FALSE(tf.acceptsDescriptor(jointDescriptor));
   EXPECT_FALSE(joints.contractToHcm(jointContract, DmaBufView{}, tfDescriptor));
   EXPECT_FALSE(joints.hcmToContract(tfDescriptor, jointContract));
+}
+
+namespace
+{
+
+/** @brief One inline geometry Contract, and a Contract message and descriptor of its own. */
+struct GeometryEntry
+{
+  std::string_view contractType;
+  std::unique_ptr<google::protobuf::MessageLite> contract;
+  std::unique_ptr<QC::Memory::QCBufferDescriptorBase_t> descriptor;
+};
+
+template <typename ContractT, typename DescriptorT>
+GeometryEntry MakeGeometryEntry(std::string_view contractType)
+{
+  return GeometryEntry{
+      contractType, std::make_unique<ContractT>(), std::make_unique<DescriptorT>()};
+}
+
+}  // namespace
+
+// UT-HCM-02: the inline geometry Contracts share the value types of qrb_contracts, and some of
+// their descriptors a buffer type, but a binding takes only the descriptor and the Contract of
+// its own, whichever way it converts.
+TEST(HcmContractBinding, EveryGeometryBindingTakesOnlyItsOwnDescriptorAndContract)
+{
+  std::vector<GeometryEntry> entries;
+  entries.push_back(MakeGeometryEntry<PoseHcmContract, PoseHcmDescriptor>(
+      kPoseWithCovarianceStampedContractType));
+  entries.push_back(MakeGeometryEntry<PoseStampedHcmContract, PoseStampedHcmDescriptor>(
+      kPoseStampedContractType));
+  entries.push_back(
+      MakeGeometryEntry<PoseArrayHcmContract, PoseArrayHcmDescriptor>(kPoseArrayContractType));
+  entries.push_back(
+      MakeGeometryEntry<TwistHcmContract, TwistHcmDescriptor>(kTwistStampedContractType));
+  entries.push_back(
+      MakeGeometryEntry<TFMessageHcmContract, TFMessageHcmDescriptor>(kTFMessageContractType));
+  entries.push_back(MakeGeometryEntry<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      kVector3StampedContractType));
+  entries.push_back(
+      MakeGeometryEntry<OdometryHcmContract, OdometryHcmDescriptor>(kOdometryContractType));
+
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    const std::string name(entries[i].contractType);
+    const HcmContractBinding * binding = FindHcmContractBinding(name);
+    ASSERT_NE(binding, nullptr) << name;
+    for (std::size_t j = 0; j < entries.size(); ++j) {
+      const std::string other(entries[j].contractType);
+      EXPECT_EQ(binding->acceptsDescriptor(*entries[j].descriptor), i == j) << name << " " << other;
+      if (i == j)
+        continue;
+      // The descriptor of another Contract, in either direction.
+      EXPECT_FALSE(
+          binding->contractToHcm(*entries[i].contract, DmaBufView{}, *entries[j].descriptor))
+          << name << " " << other;
+      EXPECT_FALSE(binding->hcmToContract(*entries[j].descriptor, *entries[i].contract))
+          << name << " " << other;
+      // The message of another Contract, in either direction.
+      EXPECT_FALSE(
+          binding->contractToHcm(*entries[j].contract, DmaBufView{}, *entries[i].descriptor))
+          << name << " " << other;
+      EXPECT_FALSE(binding->hcmToContract(*entries[i].descriptor, *entries[j].contract))
+          << name << " " << other;
+    }
+  }
 }

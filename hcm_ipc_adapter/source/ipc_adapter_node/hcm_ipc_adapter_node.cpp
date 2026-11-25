@@ -212,7 +212,8 @@ QC::QCStatus_e HcmIpcAdapterNode::Initialize(QC::QCNodeInit_t & config)
       client_.Initialize(config_.Adapter().flowConfig, bootstrapSocketPath_, diagnostic);
   QC::QCStatus_e result = ToQcStatus(initialized);
   if (initialized != Status::kOk) {
-    // A rejected configuration is not kept: the node reads as never configured.
+    // Any failure clears the configuration and returns the node to INITIAL. NO_RESOURCE may be
+    // transient, so the host may retry Initialize.
     client_.Close();
     config_.Clear();
   }

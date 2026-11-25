@@ -55,8 +55,8 @@ enum class HcmStampResult
 };
 
 /**
- * @brief The fd to sync around CPU access to the buffer of `descriptor`; like
- * the Adapter, false unless the buffer is a DMA-BUF of this process.
+ * @brief The fd to sync around CPU access to the buffer of `descriptor`; the same rule as
+ * the Adapter: false unless the buffer is a DMA-BUF of this process.
  */
 inline bool LocalBufferFd(const QC::Memory::BufferDescriptor_t & descriptor, int & fd)
 {
@@ -88,7 +88,7 @@ struct HcmProbeSample
       "add an HcmProbeSample<> for the new Contract in test/hcm/hcm_probe_node.cpp");
 };
 
-// --- geometry.v1.PoseWithCovarianceStamped (inline) ---------------------------
+// --- geometry.v1.PoseWithCovarianceStamped (Inline) ---------------------------
 
 /** The probe fills the covariance; the pose is the identity. */
 template <>
@@ -137,7 +137,7 @@ struct HcmProbeSample<adapter::PoseHcmDescriptor>
   }
 };
 
-// --- nav.v1.Odometry (inline) -------------------------------------------------
+// --- nav.v1.Odometry (Inline) -------------------------------------------------
 
 /**
  * The probe fills the pose covariance; the pose is the identity,
@@ -193,7 +193,7 @@ struct HcmProbeSample<adapter::OdometryHcmDescriptor>
   }
 };
 
-// --- geometry.v1.TwistStamped (inline) ----------------------------------------
+// --- geometry.v1.TwistStamped (Inline) ----------------------------------------
 
 /**
  * The twist has no covariance, so the probe stamps its six values themselves,
@@ -242,7 +242,7 @@ struct HcmProbeSample<adapter::TwistHcmDescriptor>
   }
 };
 
-// --- tf2.v1.TFMessage (inline, over the descriptor's buffer) ------------------
+// --- tf2.v1.TFMessage (Inline, over the descriptor's buffer) ------------------
 
 /**
  * kTransforms transforms in the descriptor's buffer. The six translation and
@@ -452,6 +452,236 @@ private:
     const adapter::HcmBufferAccess access = adapter::InspectHcmBuffer(descriptor, fd);
     return access == adapter::HcmBufferAccess::kLocalDmaBuf ||
            access == adapter::HcmBufferAccess::kHostMemory;
+  }
+};
+
+// --- geometry.v1.PoseStamped and PoseArray (inline) ---------------------------
+
+/**
+ * The six values StampDoubles() takes sit in the x, y, z of a position and the x, y, z of an
+ * orientation, in this order. The w of the quaternion stays 1, which keeps it non-zero; it is not
+ * a unit quaternion, which the Contract does not ask for.
+ */
+namespace hcm_pose_probe
+{
+
+using Values = std::array<double, kMinProbeDoubles>;
+
+inline void Fill(QRB::Memory::Pose_t & pose, const Values & values)
+{
+  pose.position.x = values[0];
+  pose.position.y = values[1];
+  pose.position.z = values[2];
+  pose.orientation.x = values[3];
+  pose.orientation.y = values[4];
+  pose.orientation.z = values[5];
+  pose.orientation.w = 1.0;
+}
+
+inline Values Read(const QRB::Memory::Pose_t & pose)
+{
+  return Values{pose.position.x, pose.position.y, pose.position.z, pose.orientation.x,
+      pose.orientation.y, pose.orientation.z};
+}
+
+}  // namespace hcm_pose_probe
+
+/**
+ * The probe stamps the six values of the pose, and the frame is the probe's. The layout is the
+ * one RosProbeSample<> uses, so either side checks what the other sends.
+ */
+template <>
+struct HcmProbeSample<adapter::PoseStampedHcmDescriptor>
+{
+  using Descriptor = adapter::PoseStampedHcmDescriptor;
+  static constexpr const char * kFrameId = "stream_probe";
+  using Values = hcm_pose_probe::Values;
+
+  static std::string CheckPayloadBytes(std::uint64_t) { return {}; }
+
+  static std::uint64_t SentBytes(const HcmSenderState &) { return sizeof(Values); }
+
+  static HcmStampResult Stamp(Descriptor & pose, HcmSenderState & state, std::uint64_t sequence)
+  {
+    if (pose.frameId != kFrameId)
+      (void)pose.frameId.Assign(kFrameId);  // fits FrameId_t
+    const std::uint64_t now = MonotonicNowNs();
+    state.lastSendNs = now;
+    pose.timestampNs = now;
+    Values values{};
+    StampDoubles(values.data(), values.size(), state.streamTag, sequence, now);
+    hcm_pose_probe::Fill(pose.pose, values);
+    return HcmStampResult::kOk;
+  }
+
+  static FrameReading Check(const Descriptor & pose,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    const Values values = hcm_pose_probe::Read(pose.pose);
+    FrameReading reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check == FrameCheck::kOk &&
+        (pose.frameId != kFrameId || pose.pose.orientation.w != 1.0))
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+};
+
+/**
+ * kPoses poses in the descriptor's buffer. The six values of the first carry the probe stamp,
+ * the bytes either side reports; every pose has the identity orientation's w, and each of the
+ * others a marker in its x, so a sample that drops or reorders poses is caught as a bad layout.
+ *
+ * The buffer is the host's: the shared frames give a PoseArray descriptor heap storage for the
+ * most poses a message may carry.
+ */
+template <>
+struct HcmProbeSample<adapter::PoseArrayHcmDescriptor>
+{
+  using Descriptor = adapter::PoseArrayHcmDescriptor;
+  using Pose = QRB::Memory::Pose_t;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr std::uint32_t kPoses = 4;
+  using Values = hcm_pose_probe::Values;
+
+  static std::string CheckPayloadBytes(std::uint64_t) { return {}; }
+
+  static std::uint64_t SentBytes(const HcmSenderState &) { return sizeof(Values); }
+
+  static HcmStampResult Stamp(Descriptor & poses, HcmSenderState & state, std::uint64_t sequence)
+  {
+    // Any buffer the CPU reaches: a local DMA-BUF is synced, heap memory needs no sync.
+    int fd = -1;
+    if (!HoldsPoses(poses, kPoses) || !UsableBuffer(poses, fd))
+      return HcmStampResult::kBadBuffer;
+    if (adapter::BeginDmaBufCpuWrite(fd) != adapter::Status::kOk)
+      return HcmStampResult::kSyncFailed;
+    const std::uint64_t now = MonotonicNowNs();
+    state.lastSendNs = now;
+    Values values{};
+    StampDoubles(values.data(), values.size(), state.streamTag, sequence, now);
+    auto * bytes = static_cast<std::uint8_t *>(poses.GetDataPtr());
+    for (std::uint32_t i = 0; i < kPoses; ++i) {
+      Pose pose{};
+      if (i == 0)
+        hcm_pose_probe::Fill(pose, values);
+      else
+        pose.position.x = Marker(i);
+      std::memcpy(bytes + i * sizeof(Pose), &pose, sizeof(Pose));
+    }
+    if (poses.frameId != kFrameId)
+      (void)poses.frameId.Assign(kFrameId);  // fits FrameId_t
+    poses.timestampNs = now;
+    poses.poseCount = kPoses;
+    poses.validSize = Descriptor::CalcBufferSize(kPoses);
+    if (adapter::EndDmaBufCpuWrite(fd) != adapter::Status::kOk)
+      return HcmStampResult::kSyncFailed;
+    return HcmStampResult::kOk;
+  }
+
+  static FrameReading Check(const Descriptor & poses,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    FrameReading reading;
+    int fd = -1;
+    if (poses.poseCount == 0 || !HoldsPoses(poses, poses.poseCount) || !UsableBuffer(poses, fd) ||
+        adapter::BeginDmaBufCpuRead(fd) != adapter::Status::kOk)
+      return reading;
+    std::array<Pose, kPoses> copy{};
+    const std::uint32_t count = std::min(poses.poseCount, kPoses);
+    std::memcpy(copy.data(), poses.GetDataPtr(), count * sizeof(Pose));
+    const bool ended = adapter::EndDmaBufCpuRead(fd) == adapter::Status::kOk;
+
+    const Values values = hcm_pose_probe::Read(copy[0]);
+    reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check != FrameCheck::kOk)
+      return reading;
+    if (!ended) {
+      reading.check = FrameCheck::kBadPayload;
+      return reading;
+    }
+    bool layout =
+        poses.poseCount == kPoses && poses.frameId == kFrameId && copy[0].orientation.w == 1.0;
+    for (std::uint32_t i = 1; layout && i < kPoses; ++i)
+      layout = IsMarkerPose(copy[i], i);
+    if (!layout)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+
+private:
+  /** @brief Exact in a double, and different for every pose after the first. */
+  static double Marker(std::uint32_t index) { return 1000.0 + static_cast<double>(index); }
+
+  static bool IsMarkerPose(const Pose & pose, std::uint32_t index)
+  {
+    return pose.position.x == Marker(index) && pose.position.y == 0.0 && pose.position.z == 0.0 &&
+           pose.orientation.x == 0.0 && pose.orientation.y == 0.0 && pose.orientation.z == 0.0 &&
+           pose.orientation.w == 1.0;
+  }
+
+  /** The fd if the buffer is a local DMA-BUF, else -1; false for a buffer the CPU cannot reach. */
+  static bool UsableBuffer(const Descriptor & poses, int & fd)
+  {
+    const adapter::HcmBufferAccess access = adapter::InspectHcmBuffer(poses, fd);
+    return access == adapter::HcmBufferAccess::kLocalDmaBuf ||
+           access == adapter::HcmBufferAccess::kHostMemory;
+  }
+
+  static bool HoldsPoses(const Descriptor & poses, std::uint32_t count)
+  {
+    return poses.pBuf != nullptr && poses.offset <= poses.size &&
+           poses.size - poses.offset >= Descriptor::CalcBufferSize(count);
+  }
+};
+
+// --- geometry.v1.Vector3Stamped (inline) --------------------------------------
+
+/**
+ * A vector has only three values, too few for StampDoubles(), so the probe stamps the three of
+ * StampTriple(): stream tag, sequence and sentinel. The send time is the stamp of the
+ * descriptor. The layout is the one RosProbeSample<> uses, so either side checks what the other
+ * sends.
+ */
+template <>
+struct HcmProbeSample<adapter::Vector3StampedHcmDescriptor>
+{
+  using Descriptor = adapter::Vector3StampedHcmDescriptor;
+  static constexpr const char * kFrameId = "stream_probe";
+  using Values = std::array<double, kTripleDoubles>;
+
+  static std::string CheckPayloadBytes(std::uint64_t) { return {}; }
+
+  static std::uint64_t SentBytes(const HcmSenderState &) { return sizeof(Values); }
+
+  static HcmStampResult Stamp(Descriptor & vector, HcmSenderState & state, std::uint64_t sequence)
+  {
+    if (vector.frameId != kFrameId)
+      (void)vector.frameId.Assign(kFrameId);  // fits FrameId_t
+    const std::uint64_t now = MonotonicNowNs();
+    state.lastSendNs = now;
+    vector.timestampNs = now;
+    Values values{};
+    StampTriple(values.data(), state.streamTag, sequence);
+    vector.vector.x = values[0];
+    vector.vector.y = values[1];
+    vector.vector.z = values[2];
+    return HcmStampResult::kOk;
+  }
+
+  static FrameReading Check(const Descriptor & vector,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    const Values values{vector.vector.x, vector.vector.y, vector.vector.z};
+    FrameReading reading = CheckTriple(values.data(), vector.timestampNs, streamTag);
+    if (reading.check == FrameCheck::kOk && vector.frameId != kFrameId)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
   }
 };
 

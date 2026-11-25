@@ -8,18 +8,24 @@
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/joint_state_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_array_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_stamped_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/tf_message_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/twist_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/vector3_stamped_hcm_converter.hpp"
 #endif
 
 #if defined( QRB_CONTRACT_MAPPING_INCLUDE_ROS_HEADERS )
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/joint_state_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/odometry_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_array_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_stamped_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/tf_message_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/twist_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/vector3_stamped_ros_converter.hpp"
 #endif
 
 #if defined( QRB_CONTRACT_MAPPING )
@@ -48,7 +54,7 @@ QRB_CONTRACT_MAPPING( TwistStamped,
     ::qrb::adapter::TwistRosMessage, "twist_bridge" )
 
 // The HCM descriptor keeps its transforms in host storage (heap or a local
-// DMA-BUF); across IPC they travel inline, so ROS gets a plain message.
+// DMA-BUF); across IPC they travel Inline, so ROS gets a plain message.
 QRB_CONTRACT_MAPPING( TFMessage,
     "qrb.contract.tf2.v1.TFMessage", Inline,
     ::qrb::contract::tf2::v1::TFMessage,
@@ -61,4 +67,24 @@ QRB_CONTRACT_MAPPING( JointState,
     ::qrb::contract::sensor::v1::JointState,
     ::qrb::adapter::JointStateHcmDescriptor,
     ::qrb::adapter::JointStateRosMessage, "joint_state_bridge" )
+
+QRB_CONTRACT_MAPPING( PoseStamped,
+    "qrb.contract.geometry.v1.PoseStamped", Inline,
+    ::qrb::contract::geometry::v1::PoseStamped,
+    ::qrb::adapter::PoseStampedHcmDescriptor,
+    ::qrb::adapter::PoseStampedRosMessage, "pose_stamped_bridge" )
+
+// The HCM descriptor keeps its poses in its buffer; across IPC they travel
+// inline, so ROS gets a plain message.
+QRB_CONTRACT_MAPPING( PoseArray,
+    "qrb.contract.geometry.v1.PoseArray", Inline,
+    ::qrb::contract::geometry::v1::PoseArray,
+    ::qrb::adapter::PoseArrayHcmDescriptor,
+    ::qrb::adapter::PoseArrayRosMessage, "pose_array_bridge" )
+
+QRB_CONTRACT_MAPPING( Vector3Stamped,
+    "qrb.contract.geometry.v1.Vector3Stamped", Inline,
+    ::qrb::contract::geometry::v1::Vector3Stamped,
+    ::qrb::adapter::Vector3StampedHcmDescriptor,
+    ::qrb::adapter::Vector3StampedRosMessage, "vector3_stamped_bridge" )
 #endif

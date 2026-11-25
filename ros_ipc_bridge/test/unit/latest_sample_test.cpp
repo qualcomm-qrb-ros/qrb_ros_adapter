@@ -7,7 +7,7 @@
 
 using namespace qrb::adapter;
 
-// UT-ROS-01: only the newest sample is kept and each one is handed out once;
+// Only the newest sample is kept and each one is handed out once;
 // Take never waits, so a fetch without a fresh sample answers NO_DATA at once.
 TEST(LatestSample, HandsOutTheNewestSampleOnce)
 {

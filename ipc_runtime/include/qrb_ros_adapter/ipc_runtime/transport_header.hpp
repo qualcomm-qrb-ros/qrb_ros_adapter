@@ -31,7 +31,7 @@ constexpr std::uint16_t kTransportVersion = 1;
  *   FETCH_RESPONSE    -> bound qrb.contract.* message, when flags has
  *                        kHasData; otherwise ipc.v1.OperationStatus
  *   FETCH_COMPLETE    -> ipc.v1.OperationStatus after a received DMA-BUF has
- *                        been copied into HCM-owned storage
+ *                        been copied into host storage
  *   PUBLISH_REQUEST   -> bound qrb.contract.* message
  *   PUBLISH_RESPONSE  -> ipc.v1.OperationStatus
  *   REGISTER_FLOW_REQUEST/RESPONSE -> ipc.v1.RegisterFlowRequest/Response
@@ -116,10 +116,11 @@ constexpr std::size_t kMaxPayloadSize = 128u * 1024u;
 /**
  * @brief Upper bound on fds in one frame.
  *
- * The implemented Contracts carry at most one DMA-BUF payload fd, and
- * both DMA-BUF Converters reject anything but exactly one. The bound is >1
- * only so that a peer sending a malformed fdCount is rejected by validation
- * rather than by a buffer overrun in the SCM_RIGHTS control-message math.
+ * A DmaBuf Contract frame carries exactly one payload fd, and an Inline Contract
+ * frame carries none. Other counts are rejected by the flow client and the Flow
+ * Bridge. The bound is >1 only so that a peer sending a malformed fdCount is
+ * rejected by validation rather than by a buffer overrun in the SCM_RIGHTS
+ * control-message math.
  */
 constexpr std::uint32_t kMaxFdCount = 4;
 

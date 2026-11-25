@@ -44,17 +44,21 @@ public:
   /**
    * @brief Server side: create, bind and listen on `socketPath`.
    *
-   * The deployment system must create the parent directory. An existing path
-   * is removed only when it is a same-owner socket with no active listener.
-   * The created socket is mode 0660. Must be followed by Accept().
+   * The parent directory must already exist; Listen() does not create it. The
+   * Bridge Manager creates `flows/` under the bootstrap socket's parent, so
+   * deployment creates that parent. An existing path is removed only when it is
+   * a same-owner socket with no active listener. The created socket is mode
+   * 0660. Must be followed by Accept() (one Flow) or AcceptConnection()
+   * (bootstrap server).
    */
   Status Listen(const std::string & socketPath);
 
   /**
    * @brief Server side: wait up to `timeout` for the one peer to connect.
    *
-   * On success the listening socket is closed immediately -- one Flow, one
-   * connection, so there is nothing left to listen for.
+   * On success a Flow's listening socket is closed immediately -- one Flow, one
+   * connection, so there is nothing left to listen for. A bootstrap listener
+   * uses AcceptConnection() and stays open.
    *
    * @return kOk, kTimeout (no peer within the window), or kResourceError.
    */
@@ -94,9 +98,8 @@ public:
    *        attached fd. Must be zero when no fd is attached.
    * @return kOk, kBadState if not connected, kInvalidArgument if
    *         `payloadSize`/`fdCount` exceed their bounds, or kResourceError.
-   *         EAGAIN is reported as kResourceError rather than retried: a
-   *         metadata-sized frame hitting the send buffer limit is itself
-   *         evidence the peer is not draining.
+   *         Every sendmsg() failure, EAGAIN included, is reported as
+   *         kResourceError without retry; the caller closes the Flow on it.
    */
   Status SendFrame(Operation operation,
       std::uint64_t requestId,

@@ -3,7 +3,7 @@
 #
 # Pure functions and single classes; no socket and no peer. HcmFlowClient and
 # HcmIpcAdapterNode against the real ROS Bridge Manager are exercised by
-# the end-to-end test in test/.
+# the end-to-end test in the top-level test/ directory.
 #
 # Built in the qcnode build with -DQRB_HCM_IPC_ADAPTER_BUILD_TESTS=ON. The tests
 # link libQCNode.so, which holds the Adapter code, rather than QCNodeIpcAdapter:

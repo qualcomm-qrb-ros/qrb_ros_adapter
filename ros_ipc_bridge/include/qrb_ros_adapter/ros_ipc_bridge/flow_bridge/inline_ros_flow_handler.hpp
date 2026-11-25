@@ -82,7 +82,7 @@ protected:
     if (publisher_ == nullptr)
       return Status::kBadState;
     if (payload.hasPayload) {
-      diagnostic += "inline contract received a DMA-BUF payload; ";
+      diagnostic += "Inline contract received a DmaBuf payload; ";
       return Status::kProtocolError;
     }
 

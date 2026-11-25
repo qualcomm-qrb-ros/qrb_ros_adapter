@@ -46,8 +46,8 @@ enum class QosDurability : std::uint8_t
 
 /**
  * @brief Bounds on the KEEP_LAST depth. The maximum matches the 32 descriptors
- * of QCNode's cross-process SharedRing, and bounds a DMA-BUF Flow's ROS-owned
- * pool (depth + 2 buffers).
+ * of QCNode's cross-process SharedRing. It bounds the publisher's KEEP_LAST
+ * history, and the pool of a DmaBuf Contract's Flow (depth + 2 buffers).
  */
 constexpr std::uint32_t kMinQosDepth = 1;
 constexpr std::uint32_t kMaxQosDepth = 32;

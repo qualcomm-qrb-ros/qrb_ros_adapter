@@ -99,7 +99,7 @@ message ConnectResponse {
   string diagnostic_message = 2;
 }
 
-// Carried by FETCH_RESPONSE with no data and by PUBLISH_RESPONSE.
+// Carried by FETCH_RESPONSE with no data, by FETCH_COMPLETE, and by PUBLISH_RESPONSE.
 message OperationStatus {
   StatusCode status = 1;
   string diagnostic_message = 2;

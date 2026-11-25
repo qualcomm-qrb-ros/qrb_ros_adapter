@@ -12,7 +12,7 @@ using namespace qrb::adapter;
 
 using ContractTime = ::qrb::contract::common::v1::Time;
 
-// UT-IPC-04: the HCM side keeps a uint64 nanosecond stamp; conversion to the
+// The HCM side keeps a uint64 nanosecond stamp; conversion to the
 // Contract sec/nanosec pair is exact and rejects what the other side cannot hold.
 TEST(ContractTime, ConvertsExactlyAndRejectsOutOfRangeStamps)
 {

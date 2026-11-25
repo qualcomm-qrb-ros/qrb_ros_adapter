@@ -53,7 +53,7 @@ public:
   /** @brief Bind and listen on `socketPath`. */
   Status Listen(const std::string & socketPath);
 
-  /** @brief Wait up to `timeout` for the one ROS IPC Bridge peer. */
+  /** @brief Wait up to `timeout` for the one HCM IPC Adapter peer. */
   Status Accept(std::chrono::milliseconds timeout);
 
   /** @brief Accept one connection into a separate Session while retaining this listener. */

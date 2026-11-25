@@ -33,7 +33,7 @@ nlohmann::json MakeConfig()
 
 }  // namespace
 
-// UT-HCM-01: the QCNode static block is the HCM side's only Flow configuration; a bad
+// The QCNode static block is the HCM side's only Flow configuration; a bad
 // one fails with a reason and is never half-applied.
 TEST(HcmIpcAdapterConfig, ParsesTheStaticBlockAndRejectsInvalidOnesUntouched)
 {

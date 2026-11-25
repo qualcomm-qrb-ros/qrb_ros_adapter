@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -11,9 +13,12 @@
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/joint_state_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_array_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_stamped_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/tf_message_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/twist_hcm_converter.hpp"
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/vector3_stamped_hcm_converter.hpp"
 #include "qrb_ros_adapter/ipc_runtime/contract_limits.hpp"
 
 using namespace qrb::adapter;
@@ -81,7 +86,7 @@ struct HeapCloudDescriptor
 
 }  // namespace
 
-// UT-HCM-03: Contract <-> HCM conversion keeps every field, rejects an invalid
+// Contract <-> HCM conversion keeps every field, rejects an invalid
 // value before it reaches either side, and bounds the PointCloud payload copy on
 // both ends.
 TEST(HcmConverters, RoundTripEveryFieldAndRejectInvalidValuesOrPayloads)
@@ -223,7 +228,7 @@ OdometryHcmContract MakeOdometry()
 
 }  // namespace
 
-// UT-HCM-03: Odometry keeps both frames, the pose and the twist with their
+// Odometry keeps both frames, the pose and the twist with their
 // covariances, and rejects what the fixed-size descriptor cannot hold.
 TEST(HcmConverters, OdometryRoundTripsEveryFieldAndRejectsInvalidValues)
 {
@@ -293,7 +298,7 @@ TwistHcmContract MakeTwist()
 
 }  // namespace
 
-// UT-HCM-04: TwistStamped keeps its frame, stamp and twist, and rejects what the
+// TwistStamped keeps its frame, stamp and twist, and rejects what the
 // fixed-size descriptor cannot hold.
 TEST(HcmConverters, TwistRoundTripsEveryFieldAndRejectsInvalidValues)
 {
@@ -374,7 +379,7 @@ struct HeapTFDescriptor
 
 }  // namespace
 
-// UT-HCM-05: TFMessage writes every transform into the descriptor's buffer,
+// TFMessage writes every transform into the descriptor's buffer,
 // reads them back unchanged, and rejects what that buffer cannot hold.
 TEST(HcmConverters, TFMessageRoundTripsThroughTheBufferAndRejectsWhatItCannotHold)
 {
@@ -552,4 +557,392 @@ TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrame
   EXPECT_FALSE(
       (ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(heap.descriptor, out)));
   EXPECT_EQ(out.SerializeAsString(), source.SerializeAsString());
+}
+
+namespace
+{
+
+PoseStampedHcmContract MakePoseStamped()
+{
+  PoseStampedHcmContract pose;
+  pose.mutable_header()->mutable_stamp()->set_sec(5);
+  pose.mutable_header()->mutable_stamp()->set_nanosec(123);
+  pose.mutable_header()->set_frame_id("base_link");
+  auto * value = pose.mutable_pose();
+  value->mutable_position()->set_x(1.5);
+  value->mutable_position()->set_y(-2.0);
+  value->mutable_position()->set_z(0.25);
+  value->mutable_orientation()->set_z(0.6);
+  value->mutable_orientation()->set_w(0.8);
+  return pose;
+}
+
+}  // namespace
+
+// UT-HCM-06: PoseStamped keeps its frame, stamp and pose, and rejects what the fixed-size
+// descriptor cannot hold.
+TEST(HcmConverters, PoseStampedRoundTripsEveryFieldAndRejectsInvalidValues)
+{
+  const PoseStampedHcmContract source = MakePoseStamped();
+  PoseStampedHcmDescriptor descriptor;
+  descriptor.id = 7;  // the inherited buffer part is the host's, not the Contract's
+  descriptor.validSize = 11;
+  ASSERT_TRUE((ConvertContractToHcm<PoseStampedHcmContract, PoseStampedHcmDescriptor>(
+      source, DmaBufView{}, descriptor)));
+  EXPECT_EQ(descriptor.id, 7u);
+  EXPECT_EQ(descriptor.validSize, 11u);
+  EXPECT_EQ(descriptor.timestampNs, 5000000123u);
+  EXPECT_TRUE(descriptor.frameId == "base_link");
+  EXPECT_DOUBLE_EQ(descriptor.pose.position.x, 1.5);
+  EXPECT_DOUBLE_EQ(descriptor.pose.position.y, -2.0);
+  EXPECT_DOUBLE_EQ(descriptor.pose.position.z, 0.25);
+  EXPECT_DOUBLE_EQ(descriptor.pose.orientation.z, 0.6);
+  EXPECT_DOUBLE_EQ(descriptor.pose.orientation.w, 0.8);
+
+  PoseStampedHcmContract back;
+  back.mutable_header()->set_frame_id("stale");
+  back.mutable_pose()->mutable_position()->set_x(99.0);
+  ASSERT_TRUE(
+      (ConvertHcmToContract<PoseStampedHcmContract, PoseStampedHcmDescriptor>(descriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), source.SerializeAsString());
+
+  // A rejected message leaves the descriptor untouched.
+  PoseStampedHcmDescriptor untouched;
+  ASSERT_EQ(untouched.frameId.Assign("untouched"), QC::QC_STATUS_OK);
+  untouched.timestampNs = 77;
+  untouched.pose.position.x = 42.0;
+  PoseStampedHcmContract invalid = MakePoseStamped();
+  invalid.mutable_pose()->mutable_position()->set_y(std::numeric_limits<double>::quiet_NaN());
+  PoseStampedHcmContract noPose = MakePoseStamped();
+  noPose.clear_pose();
+  PoseStampedHcmContract zeroQuaternion = MakePoseStamped();
+  zeroQuaternion.mutable_pose()->mutable_orientation()->set_z(0.0);
+  zeroQuaternion.mutable_pose()->mutable_orientation()->set_w(0.0);
+  PoseStampedHcmContract noOrientation = MakePoseStamped();
+  noOrientation.mutable_pose()->clear_orientation();
+  PoseStampedHcmContract negativeStamp = MakePoseStamped();
+  negativeStamp.mutable_header()->mutable_stamp()->set_sec(-1);
+  // FrameId_t is fixed-size: a longer frame_id is rejected, never truncated.
+  PoseStampedHcmContract longFrame = MakePoseStamped();
+  longFrame.mutable_header()->set_frame_id(std::string(QRB::Memory::QRB_FRAME_ID_MAX_LEN + 1, 'f'));
+  for (const PoseStampedHcmContract * rejected :
+      {&invalid, &noPose, &zeroQuaternion, &noOrientation, &negativeStamp, &longFrame}) {
+    const ConversionResult in =
+        ConvertContractToHcm<PoseStampedHcmContract, PoseStampedHcmDescriptor>(
+            *rejected, DmaBufView{}, untouched);
+    EXPECT_FALSE(in);
+    EXPECT_FALSE(in.Diagnostic().empty());
+    EXPECT_TRUE(untouched.frameId == "untouched");
+    EXPECT_EQ(untouched.timestampNs, 77u);
+    EXPECT_DOUBLE_EQ(untouched.pose.position.x, 42.0);
+  }
+
+  // The longest frame_id the descriptor holds is kept whole.
+  PoseStampedHcmContract longest = MakePoseStamped();
+  longest.mutable_header()->set_frame_id(std::string(QRB::Memory::QRB_FRAME_ID_MAX_LEN, 'f'));
+  ASSERT_TRUE((ConvertContractToHcm<PoseStampedHcmContract, PoseStampedHcmDescriptor>(
+      longest, DmaBufView{}, untouched)));
+  EXPECT_EQ(HcmStringToContract(untouched.frameId), longest.header().frame_id());
+
+  // A non-finite value or a zero quaternion produced on the HCM side, or a stamp that ROS cannot
+  // hold, must not be published.
+  PoseStampedHcmContract out;
+  PoseStampedHcmDescriptor nonFinite = descriptor;
+  nonFinite.pose.position.z = std::numeric_limits<double>::infinity();
+  EXPECT_FALSE(
+      (ConvertHcmToContract<PoseStampedHcmContract, PoseStampedHcmDescriptor>(nonFinite, out)));
+  PoseStampedHcmDescriptor zeroed = descriptor;
+  zeroed.pose.orientation.z = 0.0;
+  zeroed.pose.orientation.w = 0.0;
+  EXPECT_FALSE(
+      (ConvertHcmToContract<PoseStampedHcmContract, PoseStampedHcmDescriptor>(zeroed, out)));
+  PoseStampedHcmDescriptor tooLate = descriptor;
+  tooLate.timestampNs = std::numeric_limits<std::uint64_t>::max();
+  EXPECT_FALSE(
+      (ConvertHcmToContract<PoseStampedHcmContract, PoseStampedHcmDescriptor>(tooLate, out)));
+}
+
+namespace
+{
+
+PoseArrayHcmContract MakePoseArray(int count)
+{
+  PoseArrayHcmContract poses;
+  poses.mutable_header()->mutable_stamp()->set_sec(6);
+  poses.mutable_header()->mutable_stamp()->set_nanosec(77);
+  poses.mutable_header()->set_frame_id("base_link");
+  for (int i = 0; i < count; ++i) {
+    auto * pose = poses.add_poses();
+    pose->mutable_position()->set_x(1.5 * i);
+    pose->mutable_position()->set_z(-0.25);
+    pose->mutable_orientation()->set_z(0.6);
+    pose->mutable_orientation()->set_w(0.8);
+  }
+  return poses;
+}
+
+/** @brief A PoseArray descriptor over heap storage for `capacity` poses. */
+struct HeapPoseArrayDescriptor
+{
+  explicit HeapPoseArrayDescriptor(std::uint32_t capacity, std::size_t offset = 0)
+    : storage(offset + PoseArrayHcmDescriptor::CalcBufferSize(capacity), 0)
+  {
+    descriptor.pBuf = storage.data();
+    descriptor.size = storage.size();
+    descriptor.offset = offset;
+    descriptor.allocatorType = QC::Memory::QC_MEMORY_ALLOCATOR_HEAP;
+  }
+
+  std::vector<std::uint8_t> storage;
+  PoseArrayHcmDescriptor descriptor;
+};
+
+bool AllZero(const std::uint8_t * begin, std::size_t size)
+{
+  return std::all_of(begin, begin + size, [](std::uint8_t byte) { return byte == 0; });
+}
+
+constexpr int kPoseLimit = static_cast<int>(contract_limits::kMaxPoseCount);
+
+}  // namespace
+
+// UT-HCM-07: PoseArray writes every pose into the descriptor's buffer, reads them back
+// unchanged, and rejects what that buffer cannot hold.
+TEST(HcmConverters, PoseArrayRoundTripsThroughTheBufferAndRejectsWhatItCannotHold)
+{
+  const PoseArrayHcmContract source = MakePoseArray(3);
+  // An odd offset, and room for one more pose: the converter must not need the array to be
+  // aligned, and must write the poses of the message and no more.
+  HeapPoseArrayDescriptor heap(4, 5);
+  ASSERT_TRUE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      source, DmaBufView{}, heap.descriptor)));
+  EXPECT_EQ(heap.descriptor.poseCount, 3u);
+  EXPECT_EQ(heap.descriptor.validSize, PoseArrayHcmDescriptor::CalcBufferSize(3));
+  EXPECT_EQ(heap.descriptor.timestampNs, 6000000077u);
+  EXPECT_TRUE(heap.descriptor.frameId == "base_link");
+  QRB::Memory::Pose_t second{};
+  std::memcpy(&second, static_cast<std::uint8_t *>(heap.descriptor.GetDataPtr()) + sizeof(second),
+      sizeof(second));
+  EXPECT_DOUBLE_EQ(second.position.x, 1.5);
+  EXPECT_DOUBLE_EQ(second.position.z, -0.25);
+  EXPECT_DOUBLE_EQ(second.orientation.z, 0.6);
+  EXPECT_DOUBLE_EQ(second.orientation.w, 0.8);
+  EXPECT_TRUE(AllZero(heap.storage.data(), 5));
+  EXPECT_TRUE(AllZero(heap.storage.data() + 5 + sizeof(second) * 3, sizeof(second)));
+
+  PoseArrayHcmContract back;
+  back.mutable_header()->set_frame_id("stale");
+  back.add_poses();  // stale
+  ASSERT_TRUE(
+      (ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(heap.descriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), source.SerializeAsString());
+
+  // A shorter message shrinks the array the descriptor holds.
+  const PoseArrayHcmContract shorter = MakePoseArray(1);
+  ASSERT_TRUE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      shorter, DmaBufView{}, heap.descriptor)));
+  EXPECT_EQ(heap.descriptor.poseCount, 1u);
+  EXPECT_EQ(heap.descriptor.validSize, PoseArrayHcmDescriptor::CalcBufferSize(1));
+  ASSERT_TRUE(
+      (ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(heap.descriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), shorter.SerializeAsString());
+  ASSERT_TRUE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      source, DmaBufView{}, heap.descriptor)));
+
+  // An empty array needs no buffer, and still carries its stamp and frame.
+  PoseArrayHcmDescriptor bufferless;
+  ASSERT_TRUE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      MakePoseArray(0), DmaBufView{}, bufferless)));
+  EXPECT_EQ(bufferless.poseCount, 0u);
+  EXPECT_EQ(bufferless.validSize, 0u);
+  EXPECT_EQ(bufferless.timestampNs, 6000000077u);
+  EXPECT_TRUE(bufferless.frameId == "base_link");
+  ASSERT_TRUE(
+      (ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(bufferless, back)));
+  EXPECT_EQ(back.poses_size(), 0);
+  EXPECT_EQ(back.header().frame_id(), "base_link");
+  EXPECT_EQ(back.header().stamp().sec(), 6);
+
+  // The most poses a Contract may hold fit a buffer that holds as many.
+  const PoseArrayHcmContract fullSource = MakePoseArray(kPoseLimit);
+  HeapPoseArrayDescriptor full(static_cast<std::uint32_t>(kPoseLimit));
+  ASSERT_TRUE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      fullSource, DmaBufView{}, full.descriptor)));
+  EXPECT_EQ(full.descriptor.poseCount, static_cast<std::uint32_t>(kPoseLimit));
+  PoseArrayHcmContract fullBack;
+  ASSERT_TRUE((ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      full.descriptor, fullBack)));
+  EXPECT_EQ(fullBack.SerializeAsString(), fullSource.SerializeAsString());
+
+  // A rejected message leaves the descriptor and its buffer untouched.
+  HeapPoseArrayDescriptor untouched(2);
+  untouched.descriptor.poseCount = 1;
+  untouched.descriptor.timestampNs = 42;
+  untouched.descriptor.validSize = 9;
+  ASSERT_EQ(untouched.descriptor.frameId.Assign("untouched"), QC::QC_STATUS_OK);
+  const std::vector<std::uint8_t> before = untouched.storage;
+  PoseArrayHcmContract tooMany = MakePoseArray(3);
+  PoseArrayHcmContract overLimit = MakePoseArray(kPoseLimit + 1);
+  PoseArrayHcmContract invalid = MakePoseArray(2);
+  invalid.mutable_poses(1)->mutable_position()->set_x(std::numeric_limits<double>::quiet_NaN());
+  PoseArrayHcmContract zeroQuaternion = MakePoseArray(2);
+  zeroQuaternion.mutable_poses(1)->mutable_orientation()->set_z(0.0);
+  zeroQuaternion.mutable_poses(1)->mutable_orientation()->set_w(0.0);
+  PoseArrayHcmContract negativeStamp = MakePoseArray(2);
+  negativeStamp.mutable_header()->mutable_stamp()->set_sec(-1);
+  PoseArrayHcmContract longFrame = MakePoseArray(2);
+  longFrame.mutable_header()->set_frame_id(std::string(QRB::Memory::QRB_FRAME_ID_MAX_LEN + 1, 'f'));
+  for (const PoseArrayHcmContract * rejected :
+      {&tooMany, &overLimit, &invalid, &zeroQuaternion, &negativeStamp, &longFrame}) {
+    const ConversionResult result =
+        ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+            *rejected, DmaBufView{}, untouched.descriptor);
+    EXPECT_FALSE(result);
+    EXPECT_FALSE(result.Diagnostic().empty());
+    EXPECT_EQ(untouched.descriptor.poseCount, 1u);
+    EXPECT_EQ(untouched.descriptor.timestampNs, 42u);
+    EXPECT_EQ(untouched.descriptor.validSize, 9u);
+    EXPECT_TRUE(untouched.descriptor.frameId == "untouched");
+    EXPECT_EQ(untouched.storage, before);
+  }
+
+  // A buffer the CPU cannot reach is rejected, like one of another process, one whose offset
+  // is past its end, and no buffer at all.
+  HeapPoseArrayDescriptor foreign(3);
+  foreign.descriptor.allocatorType = QC::Memory::QC_MEMORY_ALLOCATOR_LAST;
+  HeapPoseArrayDescriptor pastEnd(3);
+  pastEnd.descriptor.offset = pastEnd.storage.size() + 1;
+  PoseArrayHcmDescriptor noBuffer;
+  for (PoseArrayHcmDescriptor * unusable : {&foreign.descriptor, &pastEnd.descriptor, &noBuffer}) {
+    EXPECT_FALSE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+        source, DmaBufView{}, *unusable)));
+    EXPECT_EQ(unusable->poseCount, 0u);
+    EXPECT_TRUE(unusable->frameId == "");
+  }
+  // The offset counts against the capacity: 3 poses no longer fit once the array starts a byte in.
+  HeapPoseArrayDescriptor shifted(3);
+  shifted.descriptor.offset = 1;
+  EXPECT_FALSE((ConvertContractToHcm<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      source, DmaBufView{}, shifted.descriptor)));
+  EXPECT_EQ(shifted.descriptor.poseCount, 0u);
+  EXPECT_TRUE(AllZero(shifted.storage.data(), shifted.storage.size()));
+
+  // A poseCount beyond the buffer never reaches ROS, whatever it is: one more than the buffer
+  // holds, and one so large that copying it out would not be possible.
+  HeapPoseArrayDescriptor overCount(2);
+  overCount.descriptor.poseCount = 3;
+  PoseArrayHcmContract out;
+  EXPECT_FALSE((ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      overCount.descriptor, out)));
+  overCount.descriptor.poseCount = std::numeric_limits<std::uint32_t>::max();
+  EXPECT_FALSE((ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(
+      overCount.descriptor, out)));
+  EXPECT_EQ(out.poses_size(), 0);
+  // More poses than a Contract may hold are rejected for that, though the buffer holds them, and
+  // before any of them is converted.
+  HeapPoseArrayDescriptor roomy(static_cast<std::uint32_t>(kPoseLimit) + 1);
+  roomy.descriptor.poseCount = static_cast<std::uint32_t>(kPoseLimit) + 1;
+  const ConversionResult limit =
+      ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(roomy.descriptor, out);
+  EXPECT_FALSE(limit);
+  EXPECT_NE(limit.Diagnostic().find("contract limit"), std::string::npos) << limit.Diagnostic();
+  EXPECT_EQ(out.poses_size(), 0);
+
+  // A stamp that ROS cannot hold, a pose the host left zero-filled, or a non-finite pose never
+  // reaches ROS either.
+  PoseArrayHcmDescriptor tooLate = heap.descriptor;
+  tooLate.timestampNs = std::numeric_limits<std::uint64_t>::max();
+  EXPECT_FALSE((ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(tooLate, out)));
+  HeapPoseArrayDescriptor zeroed(2);
+  zeroed.descriptor.poseCount = 2;  // the buffer is all zero bytes: two zero quaternions
+  EXPECT_FALSE(
+      (ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(zeroed.descriptor, out)));
+  QRB::Memory::Pose_t bad{};
+  bad.position.y = std::numeric_limits<double>::infinity();
+  std::memcpy(heap.descriptor.GetDataPtr(), &bad, sizeof(bad));
+  EXPECT_FALSE(
+      (ConvertHcmToContract<PoseArrayHcmContract, PoseArrayHcmDescriptor>(heap.descriptor, out)));
+}
+
+namespace
+{
+
+Vector3StampedHcmContract MakeVector3Stamped()
+{
+  Vector3StampedHcmContract vector;
+  vector.mutable_header()->mutable_stamp()->set_sec(8);
+  vector.mutable_header()->mutable_stamp()->set_nanosec(5);
+  vector.mutable_header()->set_frame_id("base_link");
+  vector.mutable_vector()->set_x(0.5);
+  vector.mutable_vector()->set_y(-0.25);
+  vector.mutable_vector()->set_z(-1.0);
+  return vector;
+}
+
+}  // namespace
+
+// UT-HCM-08: Vector3Stamped keeps its frame, stamp and vector, the zero vector among them, and
+// rejects what the fixed-size descriptor cannot hold.
+TEST(HcmConverters, Vector3StampedRoundTripsEveryFieldAndRejectsInvalidValues)
+{
+  const Vector3StampedHcmContract source = MakeVector3Stamped();
+  Vector3StampedHcmDescriptor descriptor;
+  ASSERT_TRUE((ConvertContractToHcm<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      source, DmaBufView{}, descriptor)));
+  EXPECT_EQ(descriptor.timestampNs, 8000000005u);
+  EXPECT_TRUE(descriptor.frameId == "base_link");
+  EXPECT_DOUBLE_EQ(descriptor.vector.x, 0.5);
+  EXPECT_DOUBLE_EQ(descriptor.vector.y, -0.25);
+  EXPECT_DOUBLE_EQ(descriptor.vector.z, -1.0);
+
+  Vector3StampedHcmContract back;
+  back.mutable_header()->set_frame_id("stale");
+  back.mutable_vector()->set_x(99.0);
+  ASSERT_TRUE((ConvertHcmToContract<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      descriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), source.SerializeAsString());
+
+  // The zero vector is a value like any other.
+  Vector3StampedHcmContract zero = MakeVector3Stamped();
+  zero.mutable_vector()->set_x(0.0);
+  zero.mutable_vector()->set_y(0.0);
+  zero.mutable_vector()->set_z(0.0);
+  Vector3StampedHcmDescriptor zeroDescriptor;
+  ASSERT_TRUE((ConvertContractToHcm<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      zero, DmaBufView{}, zeroDescriptor)));
+  ASSERT_TRUE((ConvertHcmToContract<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      zeroDescriptor, back)));
+  EXPECT_EQ(back.SerializeAsString(), zero.SerializeAsString());
+
+  // A rejected message leaves the descriptor untouched.
+  Vector3StampedHcmDescriptor untouched;
+  ASSERT_EQ(untouched.frameId.Assign("untouched"), QC::QC_STATUS_OK);
+  untouched.timestampNs = 77;
+  untouched.vector.x = 42.0;
+  Vector3StampedHcmContract invalid = MakeVector3Stamped();
+  invalid.mutable_vector()->set_y(std::numeric_limits<double>::quiet_NaN());
+  Vector3StampedHcmContract noVector = MakeVector3Stamped();
+  noVector.clear_vector();
+  Vector3StampedHcmContract negativeStamp = MakeVector3Stamped();
+  negativeStamp.mutable_header()->mutable_stamp()->set_sec(-1);
+  // FrameId_t is fixed-size: a longer frame_id is rejected, never truncated.
+  Vector3StampedHcmContract longFrame = MakeVector3Stamped();
+  longFrame.mutable_header()->set_frame_id(std::string(QRB::Memory::QRB_FRAME_ID_MAX_LEN + 1, 'f'));
+  for (const Vector3StampedHcmContract * rejected :
+      {&invalid, &noVector, &negativeStamp, &longFrame}) {
+    const ConversionResult in =
+        ConvertContractToHcm<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+            *rejected, DmaBufView{}, untouched);
+    EXPECT_FALSE(in);
+    EXPECT_FALSE(in.Diagnostic().empty());
+    EXPECT_TRUE(untouched.frameId == "untouched");
+    EXPECT_EQ(untouched.timestampNs, 77u);
+    EXPECT_DOUBLE_EQ(untouched.vector.x, 42.0);
+  }
+
+  // A non-finite vector produced on the HCM side must not be published to ROS.
+  descriptor.vector.z = std::numeric_limits<double>::infinity();
+  Vector3StampedHcmContract out;
+  EXPECT_FALSE((ConvertHcmToContract<Vector3StampedHcmContract, Vector3StampedHcmDescriptor>(
+      descriptor, out)));
 }

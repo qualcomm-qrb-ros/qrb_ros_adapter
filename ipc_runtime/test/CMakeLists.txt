@@ -2,7 +2,7 @@
 # IPC Runtime unit tests (UT-IPC-*).
 #
 # Pure functions; no socket, no ROS, no DMA heap. The IPC Runtime over real
-# sockets is exercised by the end-to-end test in test/.
+# sockets is exercised by the end-to-end test in the top-level test/ directory.
 # -----------------------------------------------------------------------------
 
 function(qrb_ros_adapter_add_ipc_runtime_test name label)

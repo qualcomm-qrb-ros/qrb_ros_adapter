@@ -15,11 +15,15 @@
 #include <memory>
 #include <sensor_msgs/msg/point_field.hpp>
 
+#include "qrb_ros_adapter/ipc_runtime/contract_limits.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/joint_state_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/odometry_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_array_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/pose_stamped_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/tf_message_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/twist_ros_converter.hpp"
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/vector3_stamped_ros_converter.hpp"
 
 using namespace qrb::adapter;
 
@@ -78,7 +82,7 @@ PointCloudRosMessage MakeRosCloud(std::size_t bufferSize = kCloudBytes)
 
 }  // namespace
 
-// UT-ROS-02: PointCloud2 metadata and every PointField datatype map 1:1 and the
+// PointCloud2 metadata and every PointField datatype map 1:1 and the
 // payload context binds the DMA-BUF instead of copying bytes; a layout the
 // payload cannot back is rejected, and a payload context binds once within
 // offset + length <= capacity.
@@ -105,7 +109,7 @@ TEST(PointCloudRosConverter, MapsMetadataBindsTheDmaBufAndRejectsWhatItCannotBac
   ContractToRosPayload inbound(kCloudBytes);
   ASSERT_TRUE(PointCloudRosConversion::ContractToRos(contract, back, inbound));
   EXPECT_EQ(inbound.Size(), kCloudBytes);
-  EXPECT_EQ(back.data_fd, nullptr);  // the caller supplies the ROS-owned buffer
+  EXPECT_EQ(back.data_fd, nullptr);  // the caller supplies the host storage buffer
   const auto destination = MakeMemfdBuffer(kCloudBytes);
   ASSERT_TRUE(inbound.Assign(destination));
   EXPECT_EQ(back.data_fd, destination);
@@ -167,7 +171,7 @@ TEST(PointCloudRosConverter, MapsMetadataBindsTheDmaBufAndRejectsWhatItCannotBac
   EXPECT_EQ(unassigned, nullptr);
 }
 
-// UT-ROS-02: nav_msgs/Odometry maps 1:1 to the Contract, both frames, pose and
+// nav_msgs/Odometry maps 1:1 to the Contract, both frames, pose and
 // twist with their covariances; an invalid value is rejected in either direction.
 TEST(OdometryRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
 {
@@ -212,7 +216,7 @@ TEST(OdometryRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
   EXPECT_FALSE(OdometryRosConversion::ContractToRos(badContract, back));
 }
 
-// UT-ROS-03: geometry_msgs/TwistStamped maps 1:1 to the Contract; an invalid
+// geometry_msgs/TwistStamped maps 1:1 to the Contract; an invalid
 // value is rejected in either direction.
 TEST(TwistRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
 {
@@ -244,7 +248,7 @@ TEST(TwistRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
   EXPECT_FALSE(TwistRosConversion::ContractToRos(badContract, back));
 }
 
-// UT-ROS-04: tf2_msgs/TFMessage maps every transform 1:1 to the Contract; an
+// tf2_msgs/TFMessage maps every transform 1:1 to the Contract; an
 // invalid transform is rejected in either direction.
 TEST(TFMessageRosConverter, MapsEveryTransformBothWaysAndRejectsInvalidValues)
 {
@@ -347,4 +351,188 @@ TEST(JointStateRosConverter, MapsEveryFieldBothWaysAndRejectsMalformedMeasuremen
   ASSERT_TRUE(JointStateRosConversion::RosToContract(ros, mismatched));
   mismatched.mutable_position()->RemoveLast();
   EXPECT_FALSE(JointStateRosConversion::ContractToRos(mismatched, back));
+}
+
+// UT-ROS-05: geometry_msgs/PoseStamped maps 1:1 to the Contract; an invalid value is rejected in
+// either direction.
+TEST(PoseStampedRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
+{
+  PoseStampedRosMessage ros;
+  ros.header.stamp.sec = 9;
+  ros.header.stamp.nanosec = 10;
+  ros.header.frame_id = "base_link";
+  ros.pose.position.x = 1.5;
+  ros.pose.position.y = -2.0;
+  ros.pose.position.z = 0.25;
+  ros.pose.orientation.z = 0.6;
+  ros.pose.orientation.w = 0.8;
+
+  PoseStampedRosContract contract;
+  ASSERT_TRUE(PoseStampedRosConversion::RosToContract(ros, contract));
+  EXPECT_EQ(contract.header().frame_id(), "base_link");
+  EXPECT_EQ(contract.header().stamp().sec(), 9);
+  EXPECT_EQ(contract.header().stamp().nanosec(), 10u);
+  EXPECT_DOUBLE_EQ(contract.pose().position().y(), -2.0);
+  EXPECT_DOUBLE_EQ(contract.pose().orientation().z(), 0.6);
+  EXPECT_DOUBLE_EQ(contract.pose().orientation().w(), 0.8);
+
+  PoseStampedRosMessage back;
+  back.header.frame_id = "stale";
+  back.pose.position.x = 99.0;
+  ASSERT_TRUE(PoseStampedRosConversion::ContractToRos(contract, back));
+  EXPECT_EQ(back, ros);
+
+  PoseStampedRosMessage invalid = ros;
+  invalid.pose.position.z = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(PoseStampedRosConversion::RosToContract(invalid, contract));
+  PoseStampedRosMessage zero = ros;
+  zero.pose.orientation.z = 0.0;
+  zero.pose.orientation.w = 0.0;
+  EXPECT_FALSE(PoseStampedRosConversion::RosToContract(zero, contract));
+
+  // A rejected Contract leaves the ROS message as it was.
+  PoseStampedRosContract badContract;
+  ASSERT_TRUE(PoseStampedRosConversion::RosToContract(ros, badContract));
+  badContract.mutable_header()->set_frame_id("/base_link");
+  EXPECT_FALSE(PoseStampedRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+  badContract.mutable_header()->set_frame_id("base_link");
+  badContract.clear_pose();
+  EXPECT_FALSE(PoseStampedRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+  // A pose with no orientation reads as the zero quaternion.
+  badContract.mutable_pose()->mutable_position()->set_x(1.0);
+  EXPECT_FALSE(PoseStampedRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+}
+
+// UT-ROS-06: geometry_msgs/PoseArray maps every pose 1:1 to the Contract, an empty array
+// included; an invalid pose, or more poses than a Contract holds, is rejected in either direction.
+TEST(PoseArrayRosConverter, MapsEveryPoseBothWaysAndRejectsInvalidValues)
+{
+  PoseArrayRosMessage ros;
+  ros.header.stamp.sec = 11;
+  ros.header.stamp.nanosec = 12;
+  ros.header.frame_id = "base_link";
+  ros.poses.resize(3);
+  for (std::size_t i = 0; i < ros.poses.size(); ++i) {
+    auto & pose = ros.poses[i];
+    pose.position.x = 0.5 * static_cast<double>(i);
+    pose.position.z = -0.25;
+    pose.orientation.z = 0.6;
+    pose.orientation.w = 0.8;
+  }
+
+  PoseArrayRosContract contract;
+  ASSERT_TRUE(PoseArrayRosConversion::RosToContract(ros, contract));
+  ASSERT_EQ(contract.poses_size(), 3);
+  EXPECT_EQ(contract.header().frame_id(), "base_link");
+  EXPECT_EQ(contract.header().stamp().nanosec(), 12u);
+  EXPECT_DOUBLE_EQ(contract.poses(2).position().x(), 1.0);
+  EXPECT_DOUBLE_EQ(contract.poses(2).position().z(), -0.25);
+  EXPECT_DOUBLE_EQ(contract.poses(2).orientation().w(), 0.8);
+
+  PoseArrayRosMessage back;
+  back.header.frame_id = "stale";
+  back.poses.resize(5);  // stale
+  ASSERT_TRUE(PoseArrayRosConversion::ContractToRos(contract, back));
+  EXPECT_EQ(back, ros);
+
+  // An empty array is a result: it keeps its header and replaces the poses of a stale message.
+  PoseArrayRosMessage empty;
+  empty.header.stamp.sec = 3;
+  empty.header.frame_id = "base_link";
+  PoseArrayRosContract emptyContract;
+  ASSERT_TRUE(PoseArrayRosConversion::RosToContract(empty, emptyContract));
+  EXPECT_EQ(emptyContract.poses_size(), 0);
+  EXPECT_EQ(emptyContract.header().frame_id(), "base_link");
+  ASSERT_TRUE(PoseArrayRosConversion::ContractToRos(emptyContract, back));
+  EXPECT_EQ(back, empty);
+
+  PoseArrayRosMessage invalid = ros;
+  invalid.poses[1].position.y = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(PoseArrayRosConversion::RosToContract(invalid, contract));
+  PoseArrayRosMessage zero = ros;
+  zero.poses[2].orientation.z = 0.0;
+  zero.poses[2].orientation.w = 0.0;
+  EXPECT_FALSE(PoseArrayRosConversion::RosToContract(zero, contract));
+
+  // A rejected Contract leaves the ROS message as it was.
+  back = ros;
+  PoseArrayRosContract badContract;
+  ASSERT_TRUE(PoseArrayRosConversion::RosToContract(ros, badContract));
+  badContract.mutable_poses(0)->mutable_orientation()->set_z(0.0);
+  badContract.mutable_poses(0)->mutable_orientation()->set_w(0.0);
+  EXPECT_FALSE(PoseArrayRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+  ASSERT_TRUE(PoseArrayRosConversion::RosToContract(ros, badContract));
+  badContract.mutable_header()->set_frame_id("/base_link");
+  EXPECT_FALSE(PoseArrayRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+
+  // As many poses as a Contract may hold go through; one more is rejected both ways.
+  PoseArrayRosMessage full;
+  full.poses.resize(contract_limits::kMaxPoseCount);
+  ASSERT_TRUE(PoseArrayRosConversion::RosToContract(full, contract));
+  ASSERT_TRUE(PoseArrayRosConversion::ContractToRos(contract, back));
+  EXPECT_TRUE(back == full);
+  PoseArrayRosMessage tooMany;
+  tooMany.poses.resize(contract_limits::kMaxPoseCount + 1);
+  EXPECT_FALSE(PoseArrayRosConversion::RosToContract(tooMany, contract));
+  PoseArrayRosContract tooManyContract;
+  for (std::size_t i = 0; i <= contract_limits::kMaxPoseCount; ++i)
+    tooManyContract.add_poses()->mutable_orientation()->set_w(1.0);
+  EXPECT_FALSE(PoseArrayRosConversion::ContractToRos(tooManyContract, back));
+}
+
+// UT-ROS-07: geometry_msgs/Vector3Stamped maps 1:1 to the Contract, the zero vector included; an
+// invalid value is rejected in either direction.
+TEST(Vector3StampedRosConverter, MapsEveryFieldBothWaysAndRejectsInvalidValues)
+{
+  Vector3StampedRosMessage ros;
+  ros.header.stamp.sec = 15;
+  ros.header.stamp.nanosec = 16;
+  ros.header.frame_id = "base_link";
+  ros.vector.x = 0.5;
+  ros.vector.y = -0.25;
+  ros.vector.z = -1.0;
+
+  Vector3StampedRosContract contract;
+  ASSERT_TRUE(Vector3StampedRosConversion::RosToContract(ros, contract));
+  EXPECT_EQ(contract.header().frame_id(), "base_link");
+  EXPECT_EQ(contract.header().stamp().nanosec(), 16u);
+  EXPECT_DOUBLE_EQ(contract.vector().x(), 0.5);
+  EXPECT_DOUBLE_EQ(contract.vector().y(), -0.25);
+  EXPECT_DOUBLE_EQ(contract.vector().z(), -1.0);
+
+  Vector3StampedRosMessage back;
+  back.header.frame_id = "stale";
+  back.vector.x = 99.0;
+  ASSERT_TRUE(Vector3StampedRosConversion::ContractToRos(contract, back));
+  EXPECT_EQ(back, ros);
+
+  // The zero vector is a value like any other, and a Contract holds it as present.
+  Vector3StampedRosMessage zero = ros;
+  zero.vector = geometry_msgs::msg::Vector3();
+  Vector3StampedRosContract zeroContract;
+  ASSERT_TRUE(Vector3StampedRosConversion::RosToContract(zero, zeroContract));
+  EXPECT_TRUE(zeroContract.has_vector());
+  ASSERT_TRUE(Vector3StampedRosConversion::ContractToRos(zeroContract, back));
+  EXPECT_EQ(back, zero);
+
+  Vector3StampedRosMessage invalid = ros;
+  invalid.vector.z = std::numeric_limits<double>::infinity();
+  EXPECT_FALSE(Vector3StampedRosConversion::RosToContract(invalid, contract));
+
+  // A rejected Contract leaves the ROS message as it was.
+  back = ros;
+  Vector3StampedRosContract badContract;
+  ASSERT_TRUE(Vector3StampedRosConversion::RosToContract(ros, badContract));
+  badContract.mutable_header()->set_frame_id("/base_link");
+  EXPECT_FALSE(Vector3StampedRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
+  badContract.mutable_header()->set_frame_id("base_link");
+  badContract.clear_vector();
+  EXPECT_FALSE(Vector3StampedRosConversion::ContractToRos(badContract, back));
+  EXPECT_EQ(back, ros);
 }

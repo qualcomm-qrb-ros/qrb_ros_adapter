@@ -43,7 +43,7 @@ public:
 /**
  * @brief Centralizes MessageLite type erasure for a Contract-specific handler.
  *
- * Custom handlers, normally only DMA-BUF handlers, implement the typed methods
+ * Handlers with a custom payload path, such as the DmaBuf handler, implement the typed methods
  * below and cannot accidentally repeat or omit the runtime Contract check.
  */
 template <typename ContractT>

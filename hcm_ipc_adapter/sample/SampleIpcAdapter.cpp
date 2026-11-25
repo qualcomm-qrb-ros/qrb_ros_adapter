@@ -26,7 +26,8 @@
  *   contract_type : (optional) a mapped Contract, default qrb.contract.sensor.v1.PointCloud2
  *   direction     : (optional) 0: HCM to ROS (default), 1: ROS to HCM
  *   ros_topic     : (optional) default /qrb_ros_adapter/sample/points for PointCloud2,
- *                   .../pose for PoseWithCovarianceStamped, else .../<contract in snake_case>
+ *                   .../pose for PoseWithCovarianceStamped, else .../<message name in snake_case,
+ *                   e.g. odometry for Odometry>
  *   reliability   : (optional) reliable or best_effort, default the ROS default
  *   durability    : (optional) volatile or transient_local, default the ROS default
  *   depth         : (optional) 1..32, default the ROS default
@@ -35,8 +36,8 @@
  *   pool_size     : (optional) frames to fetch into with output_topic, 1..32, default 4
  *   fps           : (optional) frames per second, 0 for no pause, default 30
  *   payload_bytes : (optional) bytes of points sent to ROS, for PointCloud2, default 1048576
- *   buffer_bytes  : (optional) buffer received from ROS into, for a DMA-BUF Contract,
- *                   default 33554432
+ *   buffer_bytes  : (optional) direction 1, for a DmaBuf Contract: size of the DMA buffer the
+ *                   sample receives into, default 33554432
  */
 
 #include "ContractFrame.hpp"
@@ -44,9 +45,12 @@
 #include "QC/Node/NodeFrameDescriptor.hpp"
 #include "QC/sample/DataBroker.hpp"
 #include "QC/sample/SampleIF.hpp"
+#include "QRB/Memory/Geometry/PoseArrayDescriptor.hpp"
 #include "QRB/Memory/Geometry/PoseDescriptor.hpp"
+#include "QRB/Memory/Geometry/PoseWithCovarianceDescriptor.hpp"
 #include "QRB/Memory/Geometry/TFMessageDescriptor.hpp"
 #include "QRB/Memory/Geometry/TwistDescriptor.hpp"
+#include "QRB/Memory/Geometry/Vector3Descriptor.hpp"
 #include "QRB/Memory/Navigation/OdometryDescriptor.hpp"
 #include "QRB/Memory/Sensor/JointStateBufferDescriptor.hpp"
 #include "QRB/Memory/Sensor/PointCloudDescriptor.hpp"
@@ -157,6 +161,9 @@ private:
             "qrb.contract.geometry.v1.TwistStamped",
             "qrb.contract.tf2.v1.TFMessage",
             "qrb.contract.sensor.v1.JointState",
+            "qrb.contract.geometry.v1.PoseStamped",
+            "qrb.contract.geometry.v1.PoseArray",
+            "qrb.contract.geometry.v1.Vector3Stamped",
     };
     bool IsFilledContract() const;
 
@@ -225,7 +232,7 @@ std::string SampleIpcAdapter::DefaultTopic() const
         return topic + "pose";
     }
 
-    // The message name of the Contract in snake_case, e.g. ObjectDetection: object_detection.
+    // The message name of the Contract in snake_case, e.g. Odometry: odometry.
     std::string message = m_contract.substr( m_contract.rfind( '.' ) + 1 );
     bool first = true;
     for ( char c : message )
@@ -429,7 +436,7 @@ QCStatus_e SampleIpcAdapter::SetupFrames()
 /** Set the parts of a frame that stay the same from frame to frame; UpdateFrame() does the rest. */
 void SampleIpcAdapter::FillFrame( ContractFrame &frame )
 {
-    auto *pose = dynamic_cast<QRB::Memory::PoseDescriptor_t *>( &frame.Descriptor() );
+    auto *pose = dynamic_cast<QRB::Memory::PoseWithCovarianceDescriptor_t *>( &frame.Descriptor() );
     if ( nullptr != pose )
     {
         (void) pose->frameId.Assign( "map" );
@@ -482,6 +489,35 @@ void SampleIpcAdapter::FillFrame( ContractFrame &frame )
         }
     }
 
+    auto *poseStamped = dynamic_cast<QRB::Memory::PoseDescriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != poseStamped )
+    {
+        (void) poseStamped->frameId.Assign( "map" );
+    }
+
+    auto *poses = dynamic_cast<QRB::Memory::PoseArrayDescriptor_t *>( &frame.Descriptor() );
+    if ( ( nullptr != poses ) &&
+         ( poses->size >= QRB::Memory::PoseArrayDescriptor_t::CalcBufferSize( 2 ) ) )
+    {
+        // Two poses in "map", in the heap storage of the frame: one at the origin, one 1 m above.
+        (void) poses->frameId.Assign( "map" );
+        poses->poseCount = 2;
+        poses->validSize = QRB::Memory::PoseArrayDescriptor_t::CalcBufferSize( 2 );
+        for ( uint32_t i = 0; i < 2; i++ )
+        {
+            *poses->GetPosePtr( i ) = QRB::Memory::Pose_t{};
+        }
+        poses->GetPosePtr( 1 )->position.z = 1.0;
+    }
+
+    auto *vector3 = dynamic_cast<QRB::Memory::Vector3Descriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != vector3 )
+    {
+        // Straight down in "base_link"; UpdateFrame() tilts it.
+        (void) vector3->frameId.Assign( "base_link" );
+        vector3->vector.z = -1.0;
+    }
+
     auto *cloud = dynamic_cast<QRB::Memory::PointCloudDescriptor_t *>( &frame.Descriptor() );
     if ( nullptr == cloud )
     {
@@ -521,7 +557,7 @@ void SampleIpcAdapter::UpdateFrame( ContractFrame &frame )
         cloud->timestampNs = nowNs;
     }
 
-    auto *pose = dynamic_cast<QRB::Memory::PoseDescriptor_t *>( &frame.Descriptor() );
+    auto *pose = dynamic_cast<QRB::Memory::PoseWithCovarianceDescriptor_t *>( &frame.Descriptor() );
     if ( nullptr != pose )
     {
         // Move along the x axis of "map" by 1 cm per frame.
@@ -574,6 +610,34 @@ void SampleIpcAdapter::UpdateFrame( ContractFrame &frame )
                 joint->velocity = 0.01 * (double) m_fps;
             }
         }
+    }
+
+    auto *poseStamped = dynamic_cast<QRB::Memory::PoseDescriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != poseStamped )
+    {
+        // Move along the x axis of "map" by 1 cm per frame.
+        poseStamped->timestampNs = nowNs;
+        poseStamped->pose.position.x = (double) m_frames * 0.01;
+    }
+
+    auto *poses = dynamic_cast<QRB::Memory::PoseArrayDescriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != poses )
+    {
+        poses->timestampNs = nowNs;
+        // The first pose stays put; the second moves along x by 1 cm per frame.
+        QRB::Memory::Pose_t *second = poses->GetPosePtr( 1 );
+        if ( nullptr != second )
+        {
+            second->position.x = (double) m_frames * 0.01;
+        }
+    }
+
+    auto *vector3 = dynamic_cast<QRB::Memory::Vector3Descriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != vector3 )
+    {
+        // Tilt from straight down towards x by 1 percent per frame, and back every 100 frames.
+        vector3->timestampNs = nowNs;
+        vector3->vector.x = (double) ( m_frames % 100 ) * 0.01;
     }
 }
 

@@ -11,7 +11,7 @@
 
 using namespace qrb::adapter;
 
-// UT-ROS-03: every shared Contract Descriptor has exactly one ROS binding with a
+// Every shared Contract Descriptor has exactly one ROS binding with a
 // factory and a unique node name, so adding a Contract cannot silently leave the
 // ROS side unimplemented.
 TEST(RosContractRegistry, BindsEveryContractDescriptorExactlyOnce)

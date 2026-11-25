@@ -47,7 +47,7 @@ constexpr const char * kDefaultBootstrapSocketPath = "/run/qrb_ros_adapter/boots
 constexpr std::uint32_t kMinTimeoutMs = 1;
 constexpr std::uint32_t kMaxTimeoutMs = 60000;
 
-/** @brief Bounds on the HCM-owned end-to-end startup deadline. */
+/** @brief Bounds on the end-to-end startup deadline. */
 constexpr std::uint32_t kMinStartupTimeoutMs = 1;
 constexpr std::uint32_t kMaxStartupTimeoutMs = 60000;
 

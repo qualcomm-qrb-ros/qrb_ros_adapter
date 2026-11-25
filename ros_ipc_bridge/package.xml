@@ -7,11 +7,11 @@
     ROS IPC Bridge of qrb_ros_adapter: a persistent Manager dynamically
     creates one typed ROS 2 node per registered HCM Flow in a shared process.
     Contract definitions
-    are provided by qrb_contracts; DMA-BUF payloads travel as SCM_RIGHTS file
+    are provided by qrb_contracts; DmaBuf payloads travel as SCM_RIGHTS file
     descriptors.
 
-    Typed factories and qrb_ros_transport TypeAdapters support inline and
-    DMA-BUF message paths without message-specific node subclasses.
+    Typed factories and qrb_ros_transport TypeAdapters support Inline and
+    DmaBuf message paths without message-specific node subclasses.
   </description>
   <maintainer email="noreply@qualcomm.com">Qualcomm Technologies, Inc.</maintainer>
   <license>BSD-3-Clause-Clear</license>

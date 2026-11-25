@@ -331,10 +331,9 @@ Status HcmFlowClient::Fetch(QC::Memory::QCBufferDescriptorBase_t & target)
   bool cpuReadStarted = false;
 
   if (isDmaBuf) {
-    // Both DMA-BUF Contracts carry a single buffer, so any other fd count
-    // is a protocol error.
+    // A DmaBuf Contract carries exactly one payload fd; any other count is a protocol error.
     if (header.fdCount != 1 || fds.size() != 1) {
-      return Fail(Status::kProtocolError, "DMA-BUF contract requires exactly one fd");
+      return Fail(Status::kProtocolError, "DmaBuf Contract frame requires exactly one fd");
     }
 
     std::uint64_t bufferSize = 0;
@@ -366,9 +365,9 @@ Status HcmFlowClient::Fetch(QC::Memory::QCBufferDescriptorBase_t & target)
         static_cast<std::uint8_t *>(mappedAddress) + static_cast<std::size_t>(header.payloadOffset);
     view.size = static_cast<std::size_t>(bufferSize - header.payloadOffset);
   } else if (header.fdCount != 0) {
-    return Fail(Status::kProtocolError, "inline contract must not carry an fd");
+    return Fail(Status::kProtocolError, "Inline Contract frame must not carry an fd");
   } else if (header.payloadOffset != 0) {
-    return Fail(Status::kProtocolError, "inline contract must not carry a DMA-BUF offset");
+    return Fail(Status::kProtocolError, "Inline Contract frame must not carry a payload offset");
   }
 
   // targetFd is -1 for heap storage, which makes the target sync below a no-op.
@@ -489,8 +488,8 @@ Status HcmFlowClient::Publish(const QC::Memory::QCBufferDescriptorBase_t & sourc
   }
   ++context_.framesOut;
 
-  // PUBLISH_RESPONSE confirms that the ROS IPC Bridge copied any HCM-owned
-  // DMA-BUF into ROS-owned storage and accepted the publish.
+  // PUBLISH_RESPONSE confirms that the ROS IPC Bridge copied any DMA-BUF payload out of
+  // host storage and accepted the publish.
   TransportHeader header;
   std::vector<std::uint8_t> payload;
   std::vector<OwnedFd> fds;

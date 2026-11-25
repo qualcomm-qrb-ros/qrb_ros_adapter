@@ -21,7 +21,7 @@
 //       "direction": 0,                // 0: sends (HCM to ROS), 1: receives
 //       "contract": "PointCloud2",     // short or full Contract name
 //       "topic": "/qrb_ros_adapter/stream_probe/points",   // only for the stream tag
-//       "payload_bytes": 1048576,      // a sender's payload; ignored by inline Contracts
+//       "payload_bytes": 1048576,      // a sender's payload; ignored by Inline Contracts
 //       "warmup": 0.0,                 // seconds a receiver does not measure
 //       "globalBufferIdMap": [ { "name": "Probe", "id": 0 } ]
 //     }

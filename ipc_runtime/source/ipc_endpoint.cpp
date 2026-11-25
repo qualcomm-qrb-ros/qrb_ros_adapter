@@ -146,7 +146,7 @@ Status IpcEndpoint::Listen(const std::string & socketPath)
     return Status::kResourceError;
   }
 
-  // Backlog of 1: one Flow, one peer.
+  // Backlog of 1: a Flow takes one peer; the bootstrap server takes one per connection.
   if (::listen(fd, 1) != 0) {
     ::close(fd);
     ::unlink(socketPath.c_str());
@@ -167,7 +167,7 @@ Status IpcEndpoint::Accept(std::chrono::milliseconds timeout)
   if (accepted != Status::kOk)
     return accepted;
 
-  // One Flow, one peer: nothing remains to listen for after acceptance.
+  // A Flow listener has nothing left to accept once its one peer has connected.
   ::close(listenFd_);
   listenFd_ = -1;
   fd_ = connection;
@@ -319,7 +319,7 @@ Status IpcEndpoint::SendFrame(Operation operation,
 
   ssize_t sent = ::sendmsg(fd_, &msg, MSG_DONTWAIT | MSG_NOSIGNAL);
   if (sent < 0)
-    return Status::kResourceError;  // includes EAGAIN -- see header doc
+    return Status::kResourceError;  // includes EAGAIN; the caller closes the Flow
   return Status::kOk;
 }
 

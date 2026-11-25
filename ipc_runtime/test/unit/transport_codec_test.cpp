@@ -37,7 +37,7 @@ TransportHeader MakeValidHeader()
 
 }  // namespace
 
-// UT-IPC-01: the header is a fixed 36-byte little-endian record, and every
+// The header is a fixed 36-byte little-endian record, and every
 // malformed header is rejected without touching the output.
 TEST(TransportCodec, RoundTripsTheFixedLayoutAndRejectsMalformedHeaders)
 {

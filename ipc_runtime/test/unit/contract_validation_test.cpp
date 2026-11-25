@@ -6,8 +6,11 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <string>
+
+#include "qrb_ros_adapter/ipc_runtime/transport_header.hpp"
 
 using namespace qrb::adapter;
 
@@ -57,7 +60,7 @@ constexpr std::uint64_t kCloudBytes = 128;
 
 }  // namespace
 
-// UT-IPC-03: Contract validation is the last line before a value reaches either
+// Contract validation is the last line before a value reaches either
 // side; a PointCloud layout must fit the external payload exactly as declared.
 TEST(ContractValidation, RejectsInvalidPosesAndLayoutsThePayloadCannotBack)
 {
@@ -150,7 +153,7 @@ qrb::contract::nav::v1::Odometry MakeOdometry()
 
 }  // namespace
 
-// UT-IPC-03: Odometry shares the Pose rules for its pose and adds the same
+// Odometry shares the Pose rules for its pose and adds the same
 // finite / 36-value rules for its twist and a frame_id check for child_frame_id.
 TEST(ContractValidation, RejectsInvalidOdometry)
 {
@@ -212,7 +215,7 @@ TEST(ContractValidation, RejectsInvalidOdometry)
   }
 }
 
-// UT-IPC-04: TwistStamped needs a valid header and a present, finite twist.
+// TwistStamped needs a valid header and a present, finite twist.
 TEST(ContractValidation, RejectsInvalidTwistStamped)
 {
   geometry_proto::TwistStamped twist;
@@ -249,7 +252,7 @@ TEST(ContractValidation, RejectsInvalidTwistStamped)
   }
 }
 
-// UT-IPC-05: TFMessage checks every transform: header, child_frame_id and a
+// TFMessage checks every transform: header, child_frame_id and a
 // finite, non-zero rotation; an empty message is valid.
 TEST(ContractValidation, RejectsInvalidTFMessage)
 {
@@ -370,6 +373,269 @@ TEST(ContractValidation, RejectsInvalidJointStateAndPreservesMissingMeasurements
     Message value = message;
     c.mutate(value);
     const ConversionResult rejected = ValidateJointState(value);
+    EXPECT_FALSE(rejected);
+    EXPECT_FALSE(rejected.Diagnostic().empty());
+  }
+}
+
+namespace
+{
+
+geometry_proto::PoseStamped MakePoseStamped()
+{
+  geometry_proto::PoseStamped pose;
+  pose.mutable_header()->mutable_stamp()->set_sec(1);
+  pose.mutable_header()->set_frame_id("base_link");
+  pose.mutable_pose()->mutable_position()->set_x(1.0);
+  pose.mutable_pose()->mutable_orientation()->set_w(1.0);
+  return pose;
+}
+
+}  // namespace
+
+// UT-IPC-06: PoseStamped needs a valid header and a present pose with a finite position and
+// orientation and a quaternion that is not zero; one that is not of unit length is passed on as it
+// is.
+TEST(ContractValidation, RejectsInvalidPoseStamped)
+{
+  const geometry_proto::PoseStamped pose = MakePoseStamped();
+  EXPECT_TRUE(ValidatePoseStamped(pose));
+  // An empty frame_id is allowed, and so is the longest one.
+  geometry_proto::PoseStamped noFrame = pose;
+  noFrame.mutable_header()->clear_frame_id();
+  EXPECT_TRUE(ValidatePoseStamped(noFrame));
+  geometry_proto::PoseStamped longestFrame = pose;
+  longestFrame.mutable_header()->set_frame_id(std::string(contract_limits::kMaxFrameIdLength, 'f'));
+  EXPECT_TRUE(ValidatePoseStamped(longestFrame));
+  // A half turn has w == 0 and is a rotation like any other.
+  geometry_proto::PoseStamped halfTurn = pose;
+  halfTurn.mutable_pose()->mutable_orientation()->set_x(1.0);
+  halfTurn.mutable_pose()->mutable_orientation()->set_w(0.0);
+  EXPECT_TRUE(ValidatePoseStamped(halfTurn));
+  // A position left out reads as the origin; it is the orientation that must be set. A quaternion
+  // that is not of unit length is passed on as it is.
+  geometry_proto::PoseStamped origin = pose;
+  origin.mutable_pose()->clear_position();
+  EXPECT_TRUE(ValidatePoseStamped(origin));
+  geometry_proto::PoseStamped unnormalized = pose;
+  unnormalized.mutable_pose()->mutable_orientation()->set_w(2.0);
+  EXPECT_TRUE(ValidatePoseStamped(unnormalized));
+
+  // One non-finite component of the seven is enough to reject a pose.
+  const double kNaN = std::numeric_limits<double>::quiet_NaN();
+  for (auto set : {&geometry_proto::Point::set_x, &geometry_proto::Point::set_y,
+           &geometry_proto::Point::set_z}) {
+    geometry_proto::PoseStamped value = pose;
+    (value.mutable_pose()->mutable_position()->*set)(kNaN);
+    EXPECT_FALSE(ValidatePoseStamped(value));
+  }
+  for (auto set : {&geometry_proto::Quaternion::set_x, &geometry_proto::Quaternion::set_y,
+           &geometry_proto::Quaternion::set_z, &geometry_proto::Quaternion::set_w}) {
+    geometry_proto::PoseStamped value = pose;
+    (value.mutable_pose()->mutable_orientation()->*set)(kNaN);
+    EXPECT_FALSE(ValidatePoseStamped(value));
+  }
+
+  using Stamped = geometry_proto::PoseStamped;
+  const struct
+  {
+    const char * name;
+    void (*mutate)(Stamped &);
+  } cases[] = {
+      {"MissingPose", [](Stamped & p) { p.clear_pose(); }},
+      {"MissingOrientation", [](Stamped & p) { p.mutable_pose()->clear_orientation(); }},
+      {"NonFinitePosition",
+          [](Stamped & p) {
+            p.mutable_pose()->mutable_position()->set_z(std::numeric_limits<double>::quiet_NaN());
+          }},
+      {"NonFiniteOrientation",
+          [](Stamped & p) {
+            p.mutable_pose()->mutable_orientation()->set_y(
+                -std::numeric_limits<double>::infinity());
+          }},
+      {"ZeroQuaternion", [](Stamped & p) { p.mutable_pose()->mutable_orientation()->set_w(0.0); }},
+      {"AbsoluteFrameId", [](Stamped & p) { p.mutable_header()->set_frame_id("/base_link"); }},
+      {"FrameIdTooLong",
+          [](Stamped & p) {
+            p.mutable_header()->set_frame_id(
+                std::string(contract_limits::kMaxFrameIdLength + 1, 'f'));
+          }},
+      {"NulInFrameId",
+          [](Stamped & p) { p.mutable_header()->set_frame_id(std::string("base\0link", 9)); }},
+      {"NanosecOverflow",
+          [](Stamped & p) { p.mutable_header()->mutable_stamp()->set_nanosec(1000000000U); }},
+  };
+  for (const auto & c : cases) {
+    SCOPED_TRACE(c.name);
+    Stamped value = pose;
+    c.mutate(value);
+    const ConversionResult rejected = ValidatePoseStamped(value);
+    EXPECT_FALSE(rejected);
+    EXPECT_FALSE(rejected.Diagnostic().empty());
+  }
+}
+
+namespace
+{
+
+geometry_proto::PoseArray MakePoseArray(int count)
+{
+  geometry_proto::PoseArray poses;
+  poses.mutable_header()->mutable_stamp()->set_sec(1);
+  poses.mutable_header()->set_frame_id("base_link");
+  for (int i = 0; i < count; ++i) {
+    auto * pose = poses.add_poses();
+    pose->mutable_position()->set_x(0.1 * i);
+    pose->mutable_orientation()->set_w(1.0);
+  }
+  return poses;
+}
+
+constexpr int kPoseLimit = static_cast<int>(contract_limits::kMaxPoseCount);
+
+}  // namespace
+
+// UT-IPC-07: PoseArray checks every pose as PoseStamped does its pose, and the header, holds at
+// most kMaxPoseCount poses, and is valid when empty: "no pose found" is a result.
+TEST(ContractValidation, RejectsInvalidPoseArray)
+{
+  EXPECT_TRUE(ValidatePoseArray(MakePoseArray(0)));
+  EXPECT_TRUE(ValidatePoseArray(MakePoseArray(3)));
+  // A half turn has w == 0 and is a rotation like any other.
+  geometry_proto::PoseArray halfTurn = MakePoseArray(3);
+  halfTurn.mutable_poses(1)->mutable_orientation()->set_x(1.0);
+  halfTurn.mutable_poses(1)->mutable_orientation()->set_w(0.0);
+  EXPECT_TRUE(ValidatePoseArray(halfTurn));
+  // The limit itself is fine; one pose more is not.
+  EXPECT_TRUE(ValidatePoseArray(MakePoseArray(kPoseLimit)));
+  const ConversionResult tooMany = ValidatePoseArray(MakePoseArray(kPoseLimit + 1));
+  EXPECT_FALSE(tooMany);
+  EXPECT_FALSE(tooMany.Diagnostic().empty());
+
+  using Poses = geometry_proto::PoseArray;
+  const Poses poses = MakePoseArray(3);
+  const struct
+  {
+    const char * name;
+    void (*mutate)(Poses &);
+  } cases[] = {
+      {"NonFinitePosition",
+          [](Poses & p) {
+            p.mutable_poses(1)->mutable_position()->set_z(-std::numeric_limits<double>::infinity());
+          }},
+      {"NonFiniteOrientation",
+          [](Poses & p) {
+            p.mutable_poses(2)->mutable_orientation()->set_y(
+                std::numeric_limits<double>::quiet_NaN());
+          }},
+      {"ZeroQuaternion", [](Poses & p) { p.mutable_poses(0)->mutable_orientation()->set_w(0.0); }},
+      {"MissingOrientation", [](Poses & p) { p.mutable_poses(1)->clear_orientation(); }},
+      {"AbsoluteFrameId", [](Poses & p) { p.mutable_header()->set_frame_id("/base_link"); }},
+      {"FrameIdTooLong",
+          [](Poses & p) {
+            p.mutable_header()->set_frame_id(
+                std::string(contract_limits::kMaxFrameIdLength + 1, 'f'));
+          }},
+      {"NanosecOverflow",
+          [](Poses & p) { p.mutable_header()->mutable_stamp()->set_nanosec(1000000000U); }},
+  };
+  for (const auto & c : cases) {
+    SCOPED_TRACE(c.name);
+    Poses value = poses;
+    c.mutate(value);
+    const ConversionResult rejected = ValidatePoseArray(value);
+    EXPECT_FALSE(rejected);
+    EXPECT_FALSE(rejected.Diagnostic().empty());
+  }
+
+  // A rejected pose is named by its index; a rejected header is not a pose.
+  Poses badPose = poses;
+  badPose.mutable_poses(2)->mutable_orientation()->set_w(0.0);
+  const ConversionResult namedPose = ValidatePoseArray(badPose);
+  EXPECT_FALSE(namedPose);
+  EXPECT_EQ(namedPose.Diagnostic().rfind("poses[2]: ", 0), 0u) << namedPose.Diagnostic();
+  Poses badHeader = poses;
+  badHeader.mutable_header()->set_frame_id("/base_link");
+  const ConversionResult header = ValidatePoseArray(badHeader);
+  EXPECT_FALSE(header);
+  EXPECT_EQ(header.Diagnostic().find("poses["), std::string::npos) << header.Diagnostic();
+}
+
+// UT-IPC-08: the limit of kMaxPoseCount holds what its comment claims: a pose takes at most 69
+// bytes in the array, so that many poses with the longest frame_id, and every field non-zero
+// since Protobuf leaves a zero out, take about 68 KiB, within one IPC payload.
+TEST(ContractValidation, AFullPoseArrayFitsOneIpcPayload)
+{
+  geometry_proto::PoseArray poses = MakePoseArray(0);
+  poses.mutable_header()->mutable_stamp()->set_sec(std::numeric_limits<std::int32_t>::max());
+  poses.mutable_header()->mutable_stamp()->set_nanosec(999999999U);
+  poses.mutable_header()->set_frame_id(std::string(contract_limits::kMaxFrameIdLength, 'f'));
+  for (std::size_t i = 0; i < contract_limits::kMaxPoseCount; ++i) {
+    auto * pose = poses.add_poses();
+    pose->mutable_position()->set_x(-1.0);
+    pose->mutable_position()->set_y(-2.0);
+    pose->mutable_position()->set_z(-3.0);
+    pose->mutable_orientation()->set_x(-0.1);
+    pose->mutable_orientation()->set_y(-0.2);
+    pose->mutable_orientation()->set_z(-0.3);
+    pose->mutable_orientation()->set_w(-0.4);
+  }
+  ASSERT_TRUE(ValidatePoseArray(poses));
+  ASSERT_EQ(static_cast<std::size_t>(poses.poses_size()), contract_limits::kMaxPoseCount);
+
+  // The tag and length byte of the array entry plus the pose itself.
+  EXPECT_LE(poses.poses(0).ByteSizeLong() + 2, 69u);
+  EXPECT_LE(poses.ByteSizeLong(), 68u * 1024u);
+  EXPECT_LT(poses.ByteSizeLong(), kMaxPayloadSize);
+}
+
+namespace
+{
+
+geometry_proto::Vector3Stamped MakeVector3Stamped()
+{
+  geometry_proto::Vector3Stamped vector;
+  vector.mutable_header()->mutable_stamp()->set_sec(1);
+  vector.mutable_header()->set_frame_id("base_link");
+  vector.mutable_vector()->set_z(-1.0);
+  return vector;
+}
+
+}  // namespace
+
+// UT-IPC-09: Vector3Stamped needs a valid header and a present, finite vector; the zero vector
+// is a value like any other.
+TEST(ContractValidation, RejectsInvalidVector3Stamped)
+{
+  const geometry_proto::Vector3Stamped vector = MakeVector3Stamped();
+  EXPECT_TRUE(ValidateVector3Stamped(vector));
+  geometry_proto::Vector3Stamped zero = vector;
+  zero.mutable_vector()->set_z(0.0);
+  EXPECT_TRUE(zero.has_vector());
+  EXPECT_TRUE(ValidateVector3Stamped(zero));
+
+  using Vector = geometry_proto::Vector3Stamped;
+  const struct
+  {
+    const char * name;
+    void (*mutate)(Vector &);
+  } cases[] = {
+      {"MissingVector", [](Vector & v) { v.clear_vector(); }},
+      {"NonFiniteX",
+          [](Vector & v) { v.mutable_vector()->set_x(std::numeric_limits<double>::quiet_NaN()); }},
+      {"NonFiniteY",
+          [](Vector & v) { v.mutable_vector()->set_y(std::numeric_limits<double>::infinity()); }},
+      {"NonFiniteZ",
+          [](Vector & v) { v.mutable_vector()->set_z(-std::numeric_limits<double>::infinity()); }},
+      {"AbsoluteFrameId", [](Vector & v) { v.mutable_header()->set_frame_id("/base_link"); }},
+      {"NanosecOverflow",
+          [](Vector & v) { v.mutable_header()->mutable_stamp()->set_nanosec(1000000000U); }},
+  };
+  for (const auto & c : cases) {
+    SCOPED_TRACE(c.name);
+    Vector value = vector;
+    c.mutate(value);
+    const ConversionResult rejected = ValidateVector3Stamped(value);
     EXPECT_FALSE(rejected);
     EXPECT_FALSE(rejected.Diagnostic().empty());
   }

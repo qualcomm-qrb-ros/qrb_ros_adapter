@@ -33,33 +33,60 @@ void CovarianceToRos(const Repeated & source, std::array<double, 36> & target)
 
 }  // namespace
 
+void PoseToContract(const geometry_msgs::msg::Pose & source,
+    qrb::contract::geometry::v1::Pose & target)
+{
+  auto * position = target.mutable_position();
+  position->set_x(source.position.x);
+  position->set_y(source.position.y);
+  position->set_z(source.position.z);
+  auto * orientation = target.mutable_orientation();
+  orientation->set_x(source.orientation.x);
+  orientation->set_y(source.orientation.y);
+  orientation->set_z(source.orientation.z);
+  orientation->set_w(source.orientation.w);
+}
+
+void PoseToRos(const qrb::contract::geometry::v1::Pose & source, geometry_msgs::msg::Pose & target)
+{
+  const auto & position = source.position();
+  const auto & orientation = source.orientation();
+  target.position.x = position.x();
+  target.position.y = position.y();
+  target.position.z = position.z();
+  target.orientation.x = orientation.x();
+  target.orientation.y = orientation.y();
+  target.orientation.z = orientation.z();
+  target.orientation.w = orientation.w();
+}
+
+void Vector3ToContract(const geometry_msgs::msg::Vector3 & source,
+    qrb::contract::geometry::v1::Vector3 & target)
+{
+  target.set_x(source.x);
+  target.set_y(source.y);
+  target.set_z(source.z);
+}
+
+void Vector3ToRos(const qrb::contract::geometry::v1::Vector3 & source,
+    geometry_msgs::msg::Vector3 & target)
+{
+  target.x = source.x();
+  target.y = source.y();
+  target.z = source.z();
+}
+
 void PoseWithCovarianceToContract(const geometry_msgs::msg::PoseWithCovariance & source,
     qrb::contract::geometry::v1::PoseWithCovariance & target)
 {
-  auto * position = target.mutable_pose()->mutable_position();
-  position->set_x(source.pose.position.x);
-  position->set_y(source.pose.position.y);
-  position->set_z(source.pose.position.z);
-  auto * orientation = target.mutable_pose()->mutable_orientation();
-  orientation->set_x(source.pose.orientation.x);
-  orientation->set_y(source.pose.orientation.y);
-  orientation->set_z(source.pose.orientation.z);
-  orientation->set_w(source.pose.orientation.w);
+  PoseToContract(source.pose, *target.mutable_pose());
   CovarianceToContract(source.covariance, *target.mutable_covariance());
 }
 
 void PoseWithCovarianceToRos(const qrb::contract::geometry::v1::PoseWithCovariance & source,
     geometry_msgs::msg::PoseWithCovariance & target)
 {
-  const auto & position = source.pose().position();
-  const auto & orientation = source.pose().orientation();
-  target.pose.position.x = position.x();
-  target.pose.position.y = position.y();
-  target.pose.position.z = position.z();
-  target.pose.orientation.x = orientation.x();
-  target.pose.orientation.y = orientation.y();
-  target.pose.orientation.z = orientation.z();
-  target.pose.orientation.w = orientation.w();
+  PoseToRos(source.pose(), target.pose);
   CovarianceToRos(source.covariance(), target.covariance);
 }
 

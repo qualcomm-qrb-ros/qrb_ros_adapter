@@ -54,6 +54,22 @@ bool IsFiniteTwist(const qrb::contract::geometry::v1::Twist & twist)
   return IsFiniteVector3(twist.linear()) && IsFiniteVector3(twist.angular());
 }
 
+bool IsZeroQuaternion(const qrb::contract::geometry::v1::Quaternion & quaternion)
+{
+  return quaternion.x() == 0.0 && quaternion.y() == 0.0 && quaternion.z() == 0.0 &&
+         quaternion.w() == 0.0;
+}
+
+/** @brief The rules for a Pose, wherever a Contract embeds one without a covariance. */
+ConversionResult ValidatePoseValue(const qrb::contract::geometry::v1::Pose & pose)
+{
+  if (!IsFinitePose(pose))
+    return Fail("pose contains non-finite values");
+  if (IsZeroQuaternion(pose.orientation()))
+    return Fail("orientation quaternion must be non-zero");
+  return ConversionResult::Success();
+}
+
 /** @brief The rules for a PoseWithCovariance, wherever a Contract embeds one. */
 ConversionResult ValidatePoseWithCovariance(
     const qrb::contract::geometry::v1::PoseWithCovariance & value)
@@ -213,6 +229,41 @@ ConversionResult ValidateJointState(const qrb::contract::sensor::v1::JointState 
         return ConversionResult::Failure(std::string(array.name) + " contains a non-finite value");
     }
   }
+  return ConversionResult::Success();
+}
+
+ConversionResult ValidatePoseStamped(const qrb::contract::geometry::v1::PoseStamped & pose)
+{
+  ConversionResult header = ValidateHeader(pose.header());
+  if (!header)
+    return header;
+  if (!pose.has_pose())
+    return Fail("pose is required");
+  return ValidatePoseValue(pose.pose());
+}
+
+ConversionResult ValidatePoseArray(const qrb::contract::geometry::v1::PoseArray & poses)
+{
+  if (static_cast<std::size_t>(poses.poses_size()) > contract_limits::kMaxPoseCount)
+    return Fail("PoseArray holds more poses than the contract limit");
+  ConversionResult header = ValidateHeader(poses.header());
+  if (!header)
+    return header;
+  for (int i = 0; i < poses.poses_size(); ++i) {
+    ConversionResult pose = ValidatePoseValue(poses.poses(i));
+    if (!pose)
+      return ConversionResult::Failure("poses[" + std::to_string(i) + "]: " + pose.Diagnostic());
+  }
+  return ConversionResult::Success();
+}
+
+ConversionResult ValidateVector3Stamped(const qrb::contract::geometry::v1::Vector3Stamped & vector)
+{
+  ConversionResult header = ValidateHeader(vector.header());
+  if (!header)
+    return header;
+  if (!vector.has_vector() || !IsFiniteVector3(vector.vector()))
+    return Fail("vector contains missing or non-finite values");
   return ConversionResult::Success();
 }
 

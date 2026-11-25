@@ -1,0 +1,10 @@
+{
+  "static": {
+    "name": "stream_probe_adapter",
+    "id": 0,
+    "contract_type": "qrb.contract.geometry.v1.Vector3Stamped",
+    "direction": 0,
+    "ros_topic": "/qrb_ros_adapter/stream_probe/vector3",
+    "qos_profile": { "reliability": "best_effort", "durability": "volatile", "depth": 5 }
+  }
+}

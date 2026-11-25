@@ -31,7 +31,7 @@ const ContractDescriptor & PoseDescriptor()
 
 }  // namespace
 
-// UT-IPC-02: one validator guards both ends of a Flow, and control-plane enums
+// One validator guards both ends of a Flow, and control-plane enums
 // survive the wire without an unknown value ever passing as success or a valid
 // setting.
 TEST(FlowConfigValidation, RejectsOutOfRangeFieldsAndUnknownWireValues)
@@ -95,7 +95,7 @@ TEST(FlowConfigValidation, RejectsOutOfRangeFieldsAndUnknownWireValues)
                       IsFatalForFlow(status);
     EXPECT_EQ(kinds, 1) << ToString(status);
   }
-  // Only data that did not fit the frame drops a single frame.
+  // kConversionError and kInvalidArgument are frame errors: they drop only the affected frame.
   EXPECT_TRUE(IsFrameError(Status::kConversionError));
   EXPECT_TRUE(IsFrameError(Status::kInvalidArgument));
   EXPECT_TRUE(IsFatalForFlow(Status::kProtocolError));

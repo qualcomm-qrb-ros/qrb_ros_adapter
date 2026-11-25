@@ -32,9 +32,9 @@ enum class Status : std::uint8_t
                              the Flow and data Session remain usable. */
   kInvalidArgument,     /**< Caller supplied an invalid argument, or a
                              received message failed validation. */
-  kUnsupportedContract, /**< Contract type name is not registered, or its
+  kUnsupportedContract, /**< Contract type name is not registered, its
                              descriptor does not support the requested
-                             direction. */
+                             direction, or the Flow direction is unspecified. */
   kProtocolError,       /**< Malformed frame, unexpected operation, bad fd
                              count, or a mismatched request ID. */
   kConversionError,     /**< Contract <-> ROS/HCM conversion failed a

@@ -52,7 +52,11 @@ The Flow is set in the QCNode static config:
 The supported Contracts, each with its HCM descriptor, ROS message and payload
 class, are the entries of
 [contract_mappings.def](ipc_runtime/include/qrb_ros_adapter/ipc_runtime/contract_mappings.def).
-A DMA-BUF Contract carries its payload in a DMA-BUF behind the descriptor. A
+A DmaBuf Contract carries its payload in a DMA-BUF behind the descriptor. The
+host allocates that storage: for HCM to ROS (`direction` 0) the source must be a
+local DMA-BUF; for ROS to HCM (`direction` 1) the host receives into a DMA-BUF it
+offers, or into heap storage. A TFMessage is Inline but variable-length, so its
+transforms need host storage in the HCM descriptor (heap or a local DMA-BUF). A
 frame name longer than the HCM descriptor holds is rejected, not truncated.
 
 Monitoring reports `sessionConnected`, `frameCount`, `errorCount`,

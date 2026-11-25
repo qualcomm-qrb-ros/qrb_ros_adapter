@@ -1,9 +1,9 @@
 # -----------------------------------------------------------------------------
 # ROS IPC Bridge unit tests (UT-ROS-*).
 #
-# Converters, QoS, LatestSample and the registry; no ROS Context, no socket and
+# Converters, LatestSample and the registry; no ROS Context, no socket and
 # no DMA heap. Flow Bridges and the Manager are exercised by the end-to-end
-# test in test/.
+# test in the top-level test/ directory.
 #
 # Tests link the production libraries; no production source is compiled twice.
 # -----------------------------------------------------------------------------

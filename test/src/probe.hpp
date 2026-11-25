@@ -9,13 +9,13 @@
 // the statistics of a stream, and the parameters. Neither ROS nor QCNode is
 // used here.
 //
-// A byte payload (DMA-BUF Contracts) is laid out as
+// A byte payload (DmaBuf Contracts) is laid out as
 //
 //   [ ProbeHeader | pattern ... | sentinel ]
 //
 // A sender writes the pattern once per buffer and per frame rewrites only the
 // header and the sentinel; a receiver checks both and one pattern word every
-// kSampleStride bytes. An inline Contract carries the same values as exact
+// kSampleStride bytes. An Inline Contract carries the same values as exact
 // integers in an array of doubles.
 //
 // The ROS side takes its parameters from the built-in defaults, a JSON
@@ -217,7 +217,7 @@ inline FrameReading CheckFrame(const std::uint8_t * data, std::size_t size, std:
   return reading;
 }
 
-// --- inline payloads -----------------------------------------------------------
+// --- Inline payloads -----------------------------------------------------------
 
 //
 // An array of doubles, e.g. a pose covariance, as
@@ -284,6 +284,53 @@ inline FrameReading CheckDoubles(const double * values, std::size_t count, std::
       reading.badOffset = i;
       return reading;
     }
+  }
+  reading.check = FrameCheck::kOk;
+  return reading;
+}
+
+//
+// A message with a header stamp but too few doubles for StampDoubles(), e.g. a Vector3Stamped
+// with its three, as
+//   [ streamTag, sequence, sentinel ]
+// and the send time as the header stamp itself (sec and nanosec of the CLOCK_MONOTONIC time, so
+// exact to the nanosecond), which the caller passes to the checker. There is no magic and no
+// pattern: the stream tag and the sentinel tell a foreign or a damaged frame apart.
+//
+
+constexpr std::size_t kTripleDoubles = 3;
+
+inline void StampTriple(double * values, std::uint32_t streamTag, std::uint64_t sequence)
+{
+  values[0] = static_cast<double>(streamTag);
+  values[1] = static_cast<double>(sequence);
+  values[2] = LowWord(SentinelWord(streamTag, sequence));
+}
+
+/** @param sendTimeNs the header stamp of the message, in nanoseconds */
+inline FrameReading CheckTriple(const double * values,
+    std::uint64_t sendTimeNs,
+    std::uint32_t streamTag)
+{
+  FrameReading reading;
+  if (values == nullptr)
+    return reading;
+  const auto word = [](double value) {
+    return value >= 0.0 && value < 18446744073709551616.0 ? static_cast<std::uint64_t>(value) :
+                                                            ~std::uint64_t{0};
+  };
+  reading.header.magic = kProbeMagic;
+  reading.header.streamTag = static_cast<std::uint32_t>(word(values[0]));
+  reading.header.sequence = word(values[1]);
+  reading.header.sendTimeNs = sendTimeNs;
+  if (values[0] != static_cast<double>(streamTag)) {
+    reading.check = FrameCheck::kForeignStream;
+    return reading;
+  }
+  if (values[2] != LowWord(SentinelWord(streamTag, reading.header.sequence))) {
+    reading.check = FrameCheck::kBadSentinel;
+    reading.badOffset = 2;
+    return reading;
   }
   reading.check = FrameCheck::kOk;
   return reading;
@@ -803,7 +850,7 @@ struct ProbeParams
   std::string adapterConfig;             // the Adapter's static config
   double fps{30.0};                      // frames per second, 0: unlimited
   std::uint64_t payloadBytes{1u << 20};  // what a sender sends per frame
-  std::uint64_t bufferBytes{32u << 20};  // the DMA buffer an HCM receiver offers
+  std::uint64_t bufferBytes{32u << 20};  // DMA buffer size of the HCM receiver (R2H)
   double duration{0.0};                  // seconds, 0: until stopped
   double warmup{0.0};                    // seconds
   std::string log;                       // text log file, empty: none

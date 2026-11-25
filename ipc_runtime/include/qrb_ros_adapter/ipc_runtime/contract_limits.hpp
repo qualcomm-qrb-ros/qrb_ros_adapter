@@ -23,6 +23,13 @@ inline constexpr std::size_t kMaxTransformCount = 200;
 inline constexpr std::size_t kMaxJointCount = 1024;
 inline constexpr std::size_t kMaxJointNameLength = 63;
 
+/**
+ * Poses in one PoseArray: a pose serializes to at most 69 bytes in the array, so 1000 of them
+ * with a frame id at kMaxFrameIdLength take about 68 KiB, within the IPC payload limit
+ * (kMaxPayloadSize, 128 KiB).
+ */
+inline constexpr std::size_t kMaxPoseCount = 1000;
+
 }  // namespace qrb::adapter::contract_limits
 
 #endif  // QRB_ROS_ADAPTER_IPC_RUNTIME_CONTRACT_LIMITS_HPP

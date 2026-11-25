@@ -19,7 +19,7 @@
 //   output_topic  : (required for HCM to ROS) the topic to publish stamped frames on
 //   input_topic   : (required for ROS to HCM) the topic of the frames to check
 //   fps           : (optional) frames per second a sender sends, 0 for no pause, default 30
-//   payload_bytes : (optional) a sender's payload in the buffer, for a DMA-BUF Contract
+//   payload_bytes : (optional) a sender's payload in the buffer, for a DmaBuf Contract
 //                   (PointCloud2); others ignore it, default 1048576
 //   pool_size     : (optional) frames a sender cycles through, 1..32, default 4
 //   warmup        : (optional) seconds a receiver does not measure, default 0

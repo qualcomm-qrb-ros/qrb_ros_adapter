@@ -106,7 +106,7 @@ private:
  * @brief Message-specific ROS/Contract conversion policy.
  *
  * Each registered message pair provides one full specialization containing
- * exactly two static methods, one for each conversion direction. DMA-BUF
+ * exactly two static methods, one for each conversion direction. DmaBuf
  * policies additionally receive the corresponding payload context.
  */
 template <typename RosMessageT, typename ContractT>

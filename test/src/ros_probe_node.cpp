@@ -66,7 +66,7 @@ struct RosProbeSample
       "add a RosProbeSample<> for the new Contract in test/src/ros_probe_node.cpp");
 };
 
-// --- geometry.v1.PoseWithCovarianceStamped (inline) ---------------------------
+// --- geometry.v1.PoseWithCovarianceStamped (Inline) ---------------------------
 
 /** The probe fills the covariance; the pose is the identity. */
 template <>
@@ -116,7 +116,7 @@ struct RosProbeSample<adapter::PoseRosMessage>
   }
 };
 
-// --- nav.v1.Odometry (inline) -------------------------------------------------
+// --- nav.v1.Odometry (Inline) -------------------------------------------------
 
 /**
  * The probe fills the pose covariance; the pose is the identity,
@@ -177,7 +177,7 @@ struct RosProbeSample<adapter::OdometryRosMessage>
   }
 };
 
-// --- geometry.v1.TwistStamped (inline) ----------------------------------------
+// --- geometry.v1.TwistStamped (Inline) ----------------------------------------
 
 /**
  * The twist has no covariance, so the probe stamps its six values themselves,
@@ -237,7 +237,7 @@ struct RosProbeSample<adapter::TwistRosMessage>
   }
 };
 
-// --- tf2.v1.TFMessage (inline) ------------------------------------------------
+// --- tf2.v1.TFMessage (Inline) ------------------------------------------------
 
 /**
  * kTransforms transforms. The six translation and rotation x, y, z of the first
@@ -398,6 +398,228 @@ struct RosProbeSample<adapter::JointStateRosMessage>
 
 private:
   static std::string JointName(std::size_t index) { return "joint_" + std::to_string(index); }
+};
+
+// --- geometry.v1.PoseStamped and PoseArray (inline) ---------------------------
+
+/**
+ * The six values StampDoubles() takes sit in the x, y, z of a position and the x, y, z of an
+ * orientation, in this order. The w of the quaternion stays 1, which keeps it non-zero; it is not
+ * a unit quaternion, which the Contract does not ask for.
+ */
+namespace ros_pose_probe
+{
+
+using Values = std::array<double, kMinProbeDoubles>;
+
+inline void Fill(geometry_msgs::msg::Pose & pose, const Values & values)
+{
+  pose.position.x = values[0];
+  pose.position.y = values[1];
+  pose.position.z = values[2];
+  pose.orientation.x = values[3];
+  pose.orientation.y = values[4];
+  pose.orientation.z = values[5];
+  pose.orientation.w = 1.0;
+}
+
+inline Values Read(const geometry_msgs::msg::Pose & pose)
+{
+  return Values{pose.position.x, pose.position.y, pose.position.z, pose.orientation.x,
+      pose.orientation.y, pose.orientation.z};
+}
+
+}  // namespace ros_pose_probe
+
+/**
+ * The probe stamps the six values of the pose, and the frame is the probe's. The layout is the
+ * one HcmProbeSample<> uses, so either side checks what the other sends.
+ */
+template <>
+struct RosProbeSample<adapter::PoseStampedRosMessage>
+{
+  using Message = adapter::PoseStampedRosMessage;
+  static constexpr const char * kFrameId = "stream_probe";
+  using Values = ros_pose_probe::Values;
+
+  class Source
+  {
+  public:
+    Source(std::uint64_t, std::uint32_t, std::uint32_t streamTag) : streamTag_(streamTag) {}
+
+    SendOutcome Next(std::uint64_t sequence,
+        std::unique_ptr<Message> & out,
+        std::uint64_t & sendTimeNs)
+    {
+      out = std::make_unique<Message>();
+      out->header.frame_id = kFrameId;
+      const std::uint64_t now = MonotonicNowNs();
+      sendTimeNs = now;
+      out->header.stamp.sec = static_cast<std::int32_t>(now / 1000000000ull);
+      out->header.stamp.nanosec = static_cast<std::uint32_t>(now % 1000000000ull);
+      Values values{};
+      StampDoubles(values.data(), values.size(), streamTag_, sequence, now);
+      ros_pose_probe::Fill(out->pose, values);
+      return SendOutcome::kSent;
+    }
+
+    std::uint64_t PayloadBytes() const { return sizeof(Values); }
+
+  private:
+    std::uint32_t streamTag_;
+  };
+
+  static FrameReading Check(const Message & pose,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    const Values values = ros_pose_probe::Read(pose.pose);
+    FrameReading reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check == FrameCheck::kOk &&
+        (pose.header.frame_id != kFrameId || pose.pose.orientation.w != 1.0))
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+};
+
+/**
+ * kPoses poses. The six values of the first carry the probe stamp, the bytes either side
+ * reports; every pose has the identity orientation's w, and each of the others a marker in its x,
+ * so a sample that drops or reorders poses is caught as a bad layout. The layout is the one
+ * HcmProbeSample<> uses, so either side checks what the other sends.
+ */
+template <>
+struct RosProbeSample<adapter::PoseArrayRosMessage>
+{
+  using Message = adapter::PoseArrayRosMessage;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr std::size_t kPoses = 4;
+  using Values = ros_pose_probe::Values;
+
+  class Source
+  {
+  public:
+    Source(std::uint64_t, std::uint32_t, std::uint32_t streamTag) : streamTag_(streamTag) {}
+
+    SendOutcome Next(std::uint64_t sequence,
+        std::unique_ptr<Message> & out,
+        std::uint64_t & sendTimeNs)
+    {
+      out = std::make_unique<Message>();
+      out->header.frame_id = kFrameId;
+      const std::uint64_t now = MonotonicNowNs();
+      sendTimeNs = now;
+      out->header.stamp.sec = static_cast<std::int32_t>(now / 1000000000ull);
+      out->header.stamp.nanosec = static_cast<std::uint32_t>(now % 1000000000ull);
+      Values values{};
+      StampDoubles(values.data(), values.size(), streamTag_, sequence, now);
+      out->poses.resize(kPoses);
+      ros_pose_probe::Fill(out->poses[0], values);
+      for (std::size_t i = 1; i < kPoses; ++i) {
+        out->poses[i].position.x = Marker(i);
+        out->poses[i].orientation.w = 1.0;
+      }
+      return SendOutcome::kSent;
+    }
+
+    std::uint64_t PayloadBytes() const { return sizeof(Values); }
+
+  private:
+    std::uint32_t streamTag_;
+  };
+
+  static FrameReading Check(const Message & poses,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    FrameReading reading;
+    if (poses.poses.empty())
+      return reading;
+    const Values values = ros_pose_probe::Read(poses.poses[0]);
+    reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check != FrameCheck::kOk)
+      return reading;
+    bool layout = poses.header.frame_id == kFrameId && poses.poses.size() == kPoses &&
+                  poses.poses[0].orientation.w == 1.0;
+    for (std::size_t i = 1; layout && i < kPoses; ++i)
+      layout = IsMarkerPose(poses.poses[i], i);
+    if (!layout)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+
+private:
+  /** @brief Exact in a double, and different for every pose after the first. */
+  static double Marker(std::size_t index) { return 1000.0 + static_cast<double>(index); }
+
+  static bool IsMarkerPose(const geometry_msgs::msg::Pose & pose, std::size_t index)
+  {
+    return pose.position.x == Marker(index) && pose.position.y == 0.0 && pose.position.z == 0.0 &&
+           pose.orientation.x == 0.0 && pose.orientation.y == 0.0 && pose.orientation.z == 0.0 &&
+           pose.orientation.w == 1.0;
+  }
+};
+
+// --- geometry.v1.Vector3Stamped (inline) --------------------------------------
+
+/**
+ * A vector has only three values, too few for StampDoubles(), so the probe stamps the three of
+ * StampTriple(): stream tag, sequence and sentinel. The send time is the header stamp. The layout
+ * is the one HcmProbeSample<> uses, so either side checks what the other sends.
+ */
+template <>
+struct RosProbeSample<adapter::Vector3StampedRosMessage>
+{
+  using Message = adapter::Vector3StampedRosMessage;
+  static constexpr const char * kFrameId = "stream_probe";
+  using Values = std::array<double, kTripleDoubles>;
+
+  class Source
+  {
+  public:
+    Source(std::uint64_t, std::uint32_t, std::uint32_t streamTag) : streamTag_(streamTag) {}
+
+    SendOutcome Next(std::uint64_t sequence,
+        std::unique_ptr<Message> & out,
+        std::uint64_t & sendTimeNs)
+    {
+      out = std::make_unique<Message>();
+      out->header.frame_id = kFrameId;
+      const std::uint64_t now = MonotonicNowNs();
+      sendTimeNs = now;
+      out->header.stamp.sec = static_cast<std::int32_t>(now / 1000000000ull);
+      out->header.stamp.nanosec = static_cast<std::uint32_t>(now % 1000000000ull);
+      Values values{};
+      StampTriple(values.data(), streamTag_, sequence);
+      out->vector.x = values[0];
+      out->vector.y = values[1];
+      out->vector.z = values[2];
+      return SendOutcome::kSent;
+    }
+
+    std::uint64_t PayloadBytes() const { return sizeof(Values); }
+
+  private:
+    std::uint32_t streamTag_;
+  };
+
+  static FrameReading Check(const Message & vector,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    const Values values{vector.vector.x, vector.vector.y, vector.vector.z};
+    const std::uint64_t sendTimeNs =
+        static_cast<std::uint64_t>(vector.header.stamp.sec < 0 ? 0 : vector.header.stamp.sec) *
+            1000000000ull +
+        vector.header.stamp.nanosec;
+    FrameReading reading = CheckTriple(values.data(), sendTimeNs, streamTag);
+    if (reading.check == FrameCheck::kOk && vector.header.frame_id != kFrameId)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
 };
 
 // --- sensor.v1.PointCloud2 (DMA-BUF) ------------------------------------------
@@ -665,7 +887,7 @@ constexpr ParamHelp kParamHelp[] = {
     {"adapter_config", "the Adapter's static JSON; the Flow comes from it only"},
     {"fps", "frames per second of a sender, 0: unlimited"},
     {"payload_bytes", "payload of each frame this side sends"},
-    {"buffer_bytes", "the HCM receiver's buffer; ignored on this side"},
+    {"buffer_bytes", "DMA buffer size of the HCM receiver (R2H); ignored on this side"},
     {"duration", "seconds to run, 0: until unloaded or a signal"},
     {"warmup", "seconds a receiver does not measure"},
     {"log",
