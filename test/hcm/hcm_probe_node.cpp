@@ -358,6 +358,106 @@ private:
   }
 };
 
+// --- sensor.v1.JointState (inline, over the descriptor's buffer) ---------------
+
+/** Three joints carry the six probe values in position then velocity; effort is zero. */
+template <>
+struct HcmProbeSample<adapter::JointStateHcmDescriptor>
+{
+  using Descriptor = adapter::JointStateHcmDescriptor;
+  using Joint = QRB::Memory::JointState_t;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr std::uint32_t kJoints = 3;
+  using Values = std::array<double, kMinProbeDoubles>;
+
+  static std::string CheckPayloadBytes(std::uint64_t) { return {}; }
+
+  static std::uint64_t SentBytes(const HcmSenderState &) { return sizeof(Values); }
+
+  static HcmStampResult Stamp(Descriptor & descriptor,
+      HcmSenderState & state,
+      std::uint64_t sequence)
+  {
+    const std::size_t bytes = Descriptor::CalcBufferSize(kJoints);
+    int fd = -1;
+    if (descriptor.offset > descriptor.size || descriptor.size - descriptor.offset < bytes ||
+        !UsableBuffer(descriptor, fd))
+      return HcmStampResult::kBadBuffer;
+    void * data = descriptor.GetDataPtr();
+    if (data == nullptr || reinterpret_cast<std::uintptr_t>(data) % alignof(Joint) != 0)
+      return HcmStampResult::kBadBuffer;
+
+    std::array<Joint, kJoints> joints{};
+    for (std::uint32_t i = 0; i < kJoints; ++i)
+      (void)joints[i].name.Assign(JointName(i).c_str());  // fits the fixed joint name
+    if (adapter::BeginDmaBufCpuWrite(fd) != adapter::Status::kOk)
+      return HcmStampResult::kSyncFailed;
+    const std::uint64_t now = MonotonicNowNs();
+    state.lastSendNs = now;
+    Values values{};
+    StampDoubles(values.data(), values.size(), state.streamTag, sequence, now);
+    for (std::uint32_t i = 0; i < kJoints; ++i) {
+      joints[i].position = values[i];
+      joints[i].velocity = values[kJoints + i];
+    }
+    std::memcpy(data, joints.data(), bytes);
+    if (adapter::EndDmaBufCpuWrite(fd) != adapter::Status::kOk)
+      return HcmStampResult::kSyncFailed;
+    (void)descriptor.frameId.Assign(kFrameId);  // fits FrameId_t
+    descriptor.timestampNs = now;
+    descriptor.jointCount = kJoints;
+    descriptor.validSize = bytes;
+    return HcmStampResult::kOk;
+  }
+
+  static FrameReading Check(const Descriptor & descriptor,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    FrameReading reading;
+    if (descriptor.jointCount != kJoints) {
+      reading.check = FrameCheck::kBadLayout;
+      return reading;
+    }
+    int fd = -1;
+    const Joint * data = descriptor.GetJointPtr(0);
+    if (data == nullptr || !UsableBuffer(descriptor, fd) ||
+        adapter::BeginDmaBufCpuRead(fd) != adapter::Status::kOk)
+      return reading;
+    std::array<Joint, kJoints> joints{};
+    std::memcpy(joints.data(), data, sizeof(joints));
+    if (adapter::EndDmaBufCpuRead(fd) != adapter::Status::kOk)
+      return reading;
+
+    Values values{};
+    bool layout = descriptor.frameId == kFrameId;
+    for (std::uint32_t i = 0; i < kJoints; ++i) {
+      values[i] = joints[i].position;
+      values[kJoints + i] = joints[i].velocity;
+      layout = layout && joints[i].name.Size() <= QRB::Memory::QRB_JOINT_NAME_MAX_LEN &&
+               joints[i].name == JointName(i).c_str() && joints[i].effort == 0.0;
+    }
+    reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check == FrameCheck::kOk && !layout)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+
+private:
+  static std::string JointName(std::uint32_t index)
+  {
+    return "joint_" + std::to_string(index);
+  }
+
+  static bool UsableBuffer(const Descriptor & descriptor, int & fd)
+  {
+    const adapter::HcmBufferAccess access = adapter::InspectHcmBuffer(descriptor, fd);
+    return access == adapter::HcmBufferAccess::kLocalDmaBuf ||
+           access == adapter::HcmBufferAccess::kHostMemory;
+  }
+};
+
 // --- sensor.v1.PointCloud2 (DMA-BUF) ------------------------------------------
 
 /** One row of `payload_bytes / 16` points x, y, z, intensity (FLOAT32). */

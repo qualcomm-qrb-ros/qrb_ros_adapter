@@ -309,3 +309,68 @@ TEST(ContractValidation, RejectsInvalidTFMessage)
     EXPECT_FALSE(rejected.Diagnostic().empty());
   }
 }
+
+// UT-IPC-06: JointState arrays are empty or complete, and names and values are bounded.
+TEST(ContractValidation, RejectsInvalidJointStateAndPreservesMissingMeasurements)
+{
+  using Message = sensor_proto::JointState;
+  Message message;
+  EXPECT_TRUE(ValidateJointState(message));
+  message.mutable_header()->set_frame_id("base_link");
+  for (int i = 0; i < 3; ++i) {
+    message.add_name("joint_" + std::to_string(i));
+    message.add_position(-0.5 * i);
+    message.add_velocity(0.0);
+    message.add_effort(0.0);
+  }
+  EXPECT_TRUE(ValidateJointState(message));
+  for (unsigned mask = 0; mask < 8; ++mask) {
+    Message missing = message;
+    if (mask & 1u)
+      missing.clear_position();
+    if (mask & 2u)
+      missing.clear_velocity();
+    if (mask & 4u)
+      missing.clear_effort();
+    EXPECT_TRUE(ValidateJointState(missing)) << mask;
+  }
+
+  const struct
+  {
+    const char * name;
+    void (*mutate)(Message &);
+  } cases[] = {
+      {"EmptyName", [](Message & m) { m.set_name(1, ""); }},
+      {"LongName",
+          [](Message & m) {
+            m.set_name(1, std::string(contract_limits::kMaxJointNameLength + 1, 'n'));
+          }},
+      {"NulName", [](Message & m) { m.set_name(1, std::string("joint\0x", 7)); }},
+      {"PartialPosition", [](Message & m) { m.mutable_position()->RemoveLast(); }},
+      {"ExtraVelocity", [](Message & m) { m.add_velocity(0.0); }},
+      {"NonFiniteEffort",
+          [](Message & m) { m.set_effort(1, std::numeric_limits<double>::infinity()); }},
+      {"NonFinitePosition",
+          [](Message & m) { m.set_position(1, std::numeric_limits<double>::quiet_NaN()); }},
+      {"AbsoluteFrameId", [](Message & m) { m.mutable_header()->set_frame_id("/base_link"); }},
+      {"NanosecOverflow",
+          [](Message & m) { m.mutable_header()->mutable_stamp()->set_nanosec(1000000000U); }},
+      {"TooManyJoints",
+          [](Message & m) {
+            while (static_cast<std::size_t>(m.name_size()) <= contract_limits::kMaxJointCount) {
+              m.add_name("joint_" + std::to_string(m.name_size()));
+              m.add_position(0.0);
+              m.add_velocity(0.0);
+              m.add_effort(0.0);
+            }
+          }},
+  };
+  for (const auto & c : cases) {
+    SCOPED_TRACE(c.name);
+    Message value = message;
+    c.mutate(value);
+    const ConversionResult rejected = ValidateJointState(value);
+    EXPECT_FALSE(rejected);
+    EXPECT_FALSE(rejected.Diagnostic().empty());
+  }
+}

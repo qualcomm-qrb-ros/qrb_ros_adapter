@@ -19,6 +19,9 @@ inline constexpr std::uint32_t kMaxPointFieldElementCount = 1024;
  * 118 KiB, within the IPC payload limit (kMaxPayloadSize, 128 KiB).
  */
 inline constexpr std::size_t kMaxTransformCount = 200;
+/** @brief Bounded JointState frames stay below the 128 KiB inline IPC payload limit. */
+inline constexpr std::size_t kMaxJointCount = 1024;
+inline constexpr std::size_t kMaxJointNameLength = 63;
 
 }  // namespace qrb::adapter::contract_limits
 

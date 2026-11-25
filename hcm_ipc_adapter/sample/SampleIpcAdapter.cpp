@@ -48,6 +48,7 @@
 #include "QRB/Memory/Geometry/TFMessageDescriptor.hpp"
 #include "QRB/Memory/Geometry/TwistDescriptor.hpp"
 #include "QRB/Memory/Navigation/OdometryDescriptor.hpp"
+#include "QRB/Memory/Sensor/JointStateBufferDescriptor.hpp"
 #include "QRB/Memory/Sensor/PointCloudDescriptor.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/ipc_adapter_node/hcm_ipc_adapter_node.hpp"
 
@@ -155,6 +156,7 @@ private:
             "qrb.contract.nav.v1.Odometry",
             "qrb.contract.geometry.v1.TwistStamped",
             "qrb.contract.tf2.v1.TFMessage",
+            "qrb.contract.sensor.v1.JointState",
     };
     bool IsFilledContract() const;
 
@@ -463,6 +465,23 @@ void SampleIpcAdapter::FillFrame( ContractFrame &frame )
         }
     }
 
+    auto *joints = dynamic_cast<QRB::Memory::JointStateBufferDescriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != joints )
+    {
+        (void) joints->frameId.Assign( "base_link" );
+        joints->jointCount = 3;
+        joints->validSize = QRB::Memory::JointStateBufferDescriptor_t::CalcBufferSize( 3 );
+        for ( uint32_t i = 0; i < joints->jointCount; i++ )
+        {
+            QRB::Memory::JointState_t *joint = joints->GetJointPtr( i );
+            if ( nullptr != joint )
+            {
+                *joint = QRB::Memory::JointState_t{};
+                (void) joint->name.Assign( ( "joint_" + std::to_string( i ) ).c_str() );
+            }
+        }
+    }
+
     auto *cloud = dynamic_cast<QRB::Memory::PointCloudDescriptor_t *>( &frame.Descriptor() );
     if ( nullptr == cloud )
     {
@@ -539,6 +558,22 @@ void SampleIpcAdapter::UpdateFrame( ContractFrame &frame )
         mapToOdom->timestampNs = nowNs;
         odomToBase->timestampNs = nowNs;
         odomToBase->transform.translation.x = (double) m_frames * 0.01;
+    }
+
+    auto *joints = dynamic_cast<QRB::Memory::JointStateBufferDescriptor_t *>( &frame.Descriptor() );
+    if ( nullptr != joints )
+    {
+        joints->timestampNs = nowNs;
+        for ( uint32_t i = 0; i < joints->jointCount; i++ )
+        {
+            QRB::Memory::JointState_t *joint = joints->GetJointPtr( i );
+            if ( nullptr != joint )
+            {
+                // Revolute joints move by 0.01 rad per frame; effort remains zero.
+                joint->position = (double) m_frames * 0.01 + (double) i;
+                joint->velocity = 0.01 * (double) m_fps;
+            }
+        }
     }
 }
 

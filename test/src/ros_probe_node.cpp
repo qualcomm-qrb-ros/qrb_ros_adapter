@@ -323,6 +323,83 @@ private:
   }
 };
 
+// --- sensor.v1.JointState (inline) --------------------------------------------
+
+/**
+ * Three joints, joint_0 to joint_2, each with a position, a velocity and a zero
+ * effort. The probe stamps its six values themselves, position 0..2 then
+ * velocity 0..2. The layout is the one HcmProbeSample<> uses, so either side
+ * checks what the other sends.
+ */
+template <>
+struct RosProbeSample<adapter::JointStateRosMessage>
+{
+  using Message = adapter::JointStateRosMessage;
+  static constexpr const char * kFrameId = "stream_probe";
+  static constexpr std::size_t kJoints = 3;
+  using Values = std::array<double, kMinProbeDoubles>;
+
+  class Source
+  {
+  public:
+    Source(std::uint64_t, std::uint32_t, std::uint32_t streamTag) : streamTag_(streamTag) {}
+
+    SendOutcome Next(std::uint64_t sequence,
+        std::unique_ptr<Message> & out,
+        std::uint64_t & sendTimeNs)
+    {
+      out = std::make_unique<Message>();
+      out->header.frame_id = kFrameId;
+      const std::uint64_t now = MonotonicNowNs();
+      sendTimeNs = now;
+      out->header.stamp.sec = static_cast<std::int32_t>(now / 1000000000ull);
+      out->header.stamp.nanosec = static_cast<std::uint32_t>(now % 1000000000ull);
+      Values values{};
+      StampDoubles(values.data(), values.size(), streamTag_, sequence, now);
+      out->name.resize(kJoints);
+      out->position.resize(kJoints);
+      out->velocity.resize(kJoints);
+      out->effort.assign(kJoints, 0.0);
+      for (std::size_t i = 0; i < kJoints; ++i) {
+        out->name[i] = JointName(i);
+        out->position[i] = values[i];
+        out->velocity[i] = values[kJoints + i];
+      }
+      return SendOutcome::kSent;
+    }
+
+    std::uint64_t PayloadBytes() const { return sizeof(Values); }
+
+  private:
+    std::uint32_t streamTag_;
+  };
+
+  static FrameReading Check(const Message & joints,
+      std::uint32_t streamTag,
+      std::uint64_t & payloadBytes)
+  {
+    payloadBytes = sizeof(Values);
+    FrameReading reading;
+    if (joints.position.size() != kJoints || joints.velocity.size() != kJoints)
+      return reading;
+    const Values values{joints.position[0], joints.position[1], joints.position[2],
+        joints.velocity[0], joints.velocity[1], joints.velocity[2]};
+    reading = CheckDoubles(values.data(), values.size(), streamTag);
+    if (reading.check != FrameCheck::kOk)
+      return reading;
+    bool layout = joints.header.frame_id == kFrameId && joints.name.size() == kJoints &&
+                  joints.effort.size() == kJoints;
+    for (std::size_t i = 0; layout && i < kJoints; ++i)
+      layout = joints.name[i] == JointName(i) && joints.effort[i] == 0.0;
+    if (!layout)
+      reading.check = FrameCheck::kBadLayout;
+    return reading;
+  }
+
+private:
+  static std::string JointName(std::size_t index) { return "joint_" + std::to_string(index); }
+};
+
 // --- sensor.v1.PointCloud2 (DMA-BUF) ------------------------------------------
 
 /**

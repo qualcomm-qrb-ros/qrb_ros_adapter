@@ -8,11 +8,13 @@
 #include <string>
 #include <vector>
 
+#include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/joint_state_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/odometry_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/point_cloud_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/pose_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/tf_message_hcm_converter.hpp"
 #include "qrb_ros_adapter/hcm_ipc_adapter/flow_client/twist_hcm_converter.hpp"
+#include "qrb_ros_adapter/ipc_runtime/contract_limits.hpp"
 
 using namespace qrb::adapter;
 
@@ -445,4 +447,107 @@ TEST(HcmConverters, TFMessageRoundTripsThroughTheBufferAndRejectsWhatItCannotHol
   std::memcpy(heap.descriptor.GetDataPtr(), &bad, sizeof(bad));
   EXPECT_FALSE(
       (ConvertHcmToContract<TFMessageHcmContract, TFMessageHcmDescriptor>(heap.descriptor, out)));
+}
+
+namespace
+{
+
+JointStateHcmContract MakeJointState(std::uint32_t count)
+{
+  JointStateHcmContract message;
+  message.mutable_header()->mutable_stamp()->set_sec(2);
+  message.mutable_header()->mutable_stamp()->set_nanosec(9);
+  message.mutable_header()->set_frame_id("base_link");
+  for (std::uint32_t i = 0; i < count; ++i) {
+    message.add_name("joint_" + std::to_string(i));
+    message.add_position(-0.5 * i);
+    message.add_velocity(0.25 * i);
+    message.add_effort(0.0);
+  }
+  return message;
+}
+
+/** @brief Constructed and aligned host storage for a JointState descriptor. */
+struct HeapJointDescriptor
+{
+  explicit HeapJointDescriptor(std::uint32_t count) : storage(count)
+  {
+    descriptor.pBuf = storage.data();
+    descriptor.size = JointStateHcmDescriptor::CalcBufferSize(count);
+    descriptor.allocatorType = QC::Memory::QC_MEMORY_ALLOCATOR_HEAP;
+  }
+
+  std::vector<QRB::Memory::JointState_t> storage;
+  JointStateHcmDescriptor descriptor;
+};
+
+}  // namespace
+
+// UT-HCM-06: JointState keeps the parallel arrays and bounds its aligned host records.
+TEST(HcmConverters, JointStateRoundTripsThroughHostStorageAndRejectsInvalidFrames)
+{
+  for (std::uint32_t count : {0u, 3u, static_cast<std::uint32_t>(contract_limits::kMaxJointCount)}) {
+    SCOPED_TRACE(count);
+    const JointStateHcmContract source = MakeJointState(count);
+    HeapJointDescriptor heap(count);
+    ASSERT_TRUE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
+        source, DmaBufView{}, heap.descriptor)));
+    EXPECT_EQ(heap.descriptor.jointCount, count);
+    EXPECT_EQ(heap.descriptor.validSize, JointStateHcmDescriptor::CalcBufferSize(count));
+    EXPECT_EQ(heap.descriptor.timestampNs, 2000000009u);
+    EXPECT_TRUE(heap.descriptor.frameId == "base_link");
+    if (count != 0) {
+      ASSERT_NE(heap.descriptor.GetJointPtr(count - 1), nullptr);
+      EXPECT_DOUBLE_EQ(heap.storage.back().position, source.position(count - 1));
+      EXPECT_DOUBLE_EQ(heap.storage.back().velocity, source.velocity(count - 1));
+      EXPECT_DOUBLE_EQ(heap.storage.back().effort, 0.0);
+    }
+    JointStateHcmContract back;
+    back.add_name("stale");
+    ASSERT_TRUE((ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(
+        heap.descriptor, back)));
+    EXPECT_EQ(back.SerializeAsString(), source.SerializeAsString());
+  }
+
+  HeapJointDescriptor heap(3);
+  const JointStateHcmContract source = MakeJointState(3);
+  ASSERT_TRUE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
+      source, DmaBufView{}, heap.descriptor)));
+  const std::string before(static_cast<const char *>(heap.descriptor.GetDataPtr()),
+      heap.descriptor.validSize);
+  JointStateHcmContract missing = source;
+  missing.clear_velocity();
+  JointStateHcmContract invalid = source;
+  invalid.set_effort(1, std::numeric_limits<double>::quiet_NaN());
+  JointStateHcmContract longName = source;
+  longName.set_name(1, std::string(contract_limits::kMaxJointNameLength + 1, 'n'));
+  JointStateHcmContract negativeTime = source;
+  negativeTime.mutable_header()->mutable_stamp()->set_sec(-1);
+  for (const JointStateHcmContract * rejected : {&missing, &invalid, &longName, &negativeTime}) {
+    EXPECT_FALSE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
+        *rejected, DmaBufView{}, heap.descriptor)));
+    EXPECT_EQ(heap.descriptor.jointCount, 3u);
+    EXPECT_EQ(std::string(static_cast<const char *>(heap.descriptor.GetDataPtr()),
+                  heap.descriptor.validSize), before);
+  }
+  HeapJointDescriptor small(2);
+  EXPECT_FALSE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
+      source, DmaBufView{}, small.descriptor)));
+  heap.descriptor.offset = 1;  // enough capacity is not enough: records must also be aligned
+  heap.descriptor.size += 1;
+  EXPECT_FALSE((ConvertContractToHcm<JointStateHcmContract, JointStateHcmDescriptor>(
+      source, DmaBufView{}, heap.descriptor)));
+  heap.descriptor.offset = 0;
+  --heap.descriptor.size;
+
+  JointStateHcmContract out = source;
+  --heap.descriptor.validSize;
+  EXPECT_FALSE((ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(
+      heap.descriptor, out)));
+  EXPECT_EQ(out.SerializeAsString(), source.SerializeAsString());
+  ++heap.descriptor.validSize;
+  heap.storage[1].velocity = std::numeric_limits<double>::infinity();
+  EXPECT_FALSE((ConvertHcmToContract<JointStateHcmContract, JointStateHcmDescriptor>(
+      heap.descriptor, out)));
+  EXPECT_EQ(out.SerializeAsString(), source.SerializeAsString());
 }

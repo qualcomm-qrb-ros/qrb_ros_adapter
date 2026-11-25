@@ -15,6 +15,7 @@
 #include <memory>
 #include <sensor_msgs/msg/point_field.hpp>
 
+#include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/joint_state_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/odometry_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/point_cloud_ros_converter.hpp"
 #include "qrb_ros_adapter/ros_ipc_bridge/flow_bridge/tf_message_ros_converter.hpp"
@@ -279,4 +280,71 @@ TEST(TFMessageRosConverter, MapsEveryTransformBothWaysAndRejectsInvalidValues)
   ASSERT_TRUE(TFMessageRosConversion::RosToContract(ros, badContract));
   badContract.mutable_transforms(0)->mutable_header()->set_frame_id("/map");
   EXPECT_FALSE(TFMessageRosConversion::ContractToRos(badContract, back));
+}
+
+// UT-ROS-05: sensor_msgs/JointState maps 1:1 to the Contract; an empty
+// measurement array stays empty, and malformed array lengths or invalid values
+// are rejected in either direction.
+TEST(JointStateRosConverter, MapsEveryFieldBothWaysAndRejectsMalformedMeasurements)
+{
+  JointStateRosMessage ros;
+  ros.header.stamp.sec = 5;
+  ros.header.stamp.nanosec = 6;
+  ros.header.frame_id = "stream_probe";
+  ros.name = {"joint_0", "joint_1", "joint_2"};
+  ros.position = {0.1, 0.2, 0.3};
+  ros.velocity = {1.0, 2.0, 3.0};
+  ros.effort = {0.0, 0.0, 0.0};
+
+  JointStateRosContract contract;
+  ASSERT_TRUE(JointStateRosConversion::RosToContract(ros, contract));
+  EXPECT_EQ(contract.header().frame_id(), "stream_probe");
+  EXPECT_EQ(contract.header().stamp().nanosec(), 6u);
+  ASSERT_EQ(contract.name_size(), 3);
+  EXPECT_EQ(contract.name(2), "joint_2");
+  ASSERT_EQ(contract.position_size(), 3);
+  EXPECT_DOUBLE_EQ(contract.position(1), 0.2);
+  EXPECT_DOUBLE_EQ(contract.velocity(2), 3.0);
+  EXPECT_EQ(contract.effort_size(), 3);
+
+  JointStateRosMessage back;
+  back.name.resize(5);  // stale
+  ASSERT_TRUE(JointStateRosConversion::ContractToRos(contract, back));
+  EXPECT_EQ(back, ros);
+
+  // A measurement that is not supplied stays empty and is never zero-filled.
+  JointStateRosMessage positionOnly = ros;
+  positionOnly.velocity.clear();
+  positionOnly.effort.clear();
+  JointStateRosContract partial;
+  ASSERT_TRUE(JointStateRosConversion::RosToContract(positionOnly, partial));
+  EXPECT_EQ(partial.velocity_size(), 0);
+  EXPECT_EQ(partial.effort_size(), 0);
+  JointStateRosMessage partialBack;
+  ASSERT_TRUE(JointStateRosConversion::ContractToRos(partial, partialBack));
+  EXPECT_EQ(partialBack, positionOnly);
+
+  // A measurement array that is neither empty nor as long as name.
+  JointStateRosMessage shortPosition = ros;
+  shortPosition.position.pop_back();
+  EXPECT_FALSE(JointStateRosConversion::RosToContract(shortPosition, contract));
+  JointStateRosMessage longEffort = ros;
+  longEffort.effort.push_back(0.0);
+  EXPECT_FALSE(JointStateRosConversion::RosToContract(longEffort, contract));
+
+  JointStateRosMessage invalid = ros;
+  invalid.velocity[1] = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_FALSE(JointStateRosConversion::RosToContract(invalid, contract));
+  JointStateRosMessage emptyName = ros;
+  emptyName.name[0].clear();
+  EXPECT_FALSE(JointStateRosConversion::RosToContract(emptyName, contract));
+
+  JointStateRosContract badContract;
+  ASSERT_TRUE(JointStateRosConversion::RosToContract(ros, badContract));
+  badContract.mutable_header()->set_frame_id("/stream_probe");
+  EXPECT_FALSE(JointStateRosConversion::ContractToRos(badContract, back));
+  JointStateRosContract mismatched;
+  ASSERT_TRUE(JointStateRosConversion::RosToContract(ros, mismatched));
+  mismatched.mutable_position()->RemoveLast();
+  EXPECT_FALSE(JointStateRosConversion::ContractToRos(mismatched, back));
 }

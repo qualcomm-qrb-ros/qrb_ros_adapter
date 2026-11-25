@@ -185,6 +185,36 @@ ConversionResult ValidateTFMessage(const qrb::contract::tf2::v1::TFMessage & mes
   return ConversionResult::Success();
 }
 
+ConversionResult ValidateJointState(const qrb::contract::sensor::v1::JointState & message)
+{
+  ConversionResult header = ValidateHeader(message.header());
+  if (!header)
+    return header;
+  if (static_cast<std::size_t>(message.name_size()) > contract_limits::kMaxJointCount)
+    return Fail("JointState holds more joints than the contract limit");
+  for (const auto & name : message.name()) {
+    if (name.empty() || name.size() > contract_limits::kMaxJointNameLength)
+      return Fail("joint name is outside the contract limit");
+    if (name.find('\0') != std::string::npos)
+      return Fail("joint name must not contain NUL");
+  }
+  const struct
+  {
+    const google::protobuf::RepeatedField<double> & values;
+    const char * name;
+  } arrays[] = {{message.position(), "position"}, {message.velocity(), "velocity"},
+      {message.effort(), "effort"}};
+  for (const auto & array : arrays) {
+    if (!array.values.empty() && array.values.size() != message.name_size())
+      return ConversionResult::Failure(std::string(array.name) + " must be empty or match name size");
+    for (double value : array.values) {
+      if (!std::isfinite(value))
+        return ConversionResult::Failure(std::string(array.name) + " contains a non-finite value");
+    }
+  }
+  return ConversionResult::Success();
+}
+
 ConversionResult ValidatePointCloud2(const qrb::contract::sensor::v1::PointCloud2 & cloud,
     std::uint64_t externalPayloadSize)
 {
