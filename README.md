@@ -44,6 +44,8 @@ The Flow is set in the QCNode static config:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| `name` | yes | Flow name, unique among the Flows of a Bridge. |
+| `id` | no | QCNode id (0–255), default 0; `SampleIpcAdapter` defaults it to its sample id. |
 | `contract_type` | yes | Contract full name, e.g. `qrb.contract.sensor.v1.PointCloud2`. |
 | `direction` | yes | `0`: HCM to ROS (the node publishes the descriptor); `1`: ROS to HCM (the node fills it in). |
 | `ros_topic` | yes | ROS topic. |
@@ -63,7 +65,8 @@ Monitoring reports `sessionConnected`, `frameCount`, `errorCount`,
 `last/average/min/maxLatencyNs` and `noDataCount`.
 
 The ROS IPC Bridge takes no parameters and adds one ROS node for each
-registered Flow.
+registered Flow. One Bridge runs per device and serves up to 32 Flows at once;
+give each Flow its own `name` and `ros_topic`.
 
 ## Supported targets
 
@@ -104,7 +107,7 @@ ROS probe of the [Test](#test) takes `<setting>:=<value>` on its launch.
 | --- | --- | --- |
 | `contract_type`, `direction`, `ros_topic` | `PointCloud2`, `0`, per Contract | IpcAdapter: the static config fields above. |
 | `reliability`, `durability`, `depth` | `rclcpp::QoS(10)` | IpcAdapter: the `qos_profile` fields above. |
-| `adapter_config` | StreamProbe: required; ROS probe: `adapter_h2r.json` | All: a static config file; on IpcAdapter it replaces the two rows above. |
+| `adapter_config` | StreamProbe: required; ROS probe: `adapter_point_cloud_h2r.json` | All: a static config file; on IpcAdapter it replaces the two rows above. |
 | `input_topic` / `output_topic` | | IpcAdapter, StreamProbe: takes frames from / gives frames to another sample. |
 | `fps` | `30` | All: frames per second a sender sends, `0` for no pause. |
 | `payload_bytes` | `1048576` | All: DMA-BUF payload of a DmaBuf Contract a sender sends. |
@@ -133,19 +136,20 @@ The image needs the packages and ros2cli.
    ```bash
    CFG=/usr/ros/jazzy/share/qrb_ros_adapter_stream_probe/probe_configs
    qcrun QCNodeSampleApp -T 10 \
-     -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_h2r.json -k input_topic -v /frames \
-     -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_h2r.json -k output_topic -v /frames
+     -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_point_cloud_h2r.json -k input_topic -v /frames \
+     -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_point_cloud_h2r.json -k output_topic -v /frames
    ```
 
-For ROS to HCM, use `adapter_r2h.json` on both sides and list the probe first:
+For ROS to HCM, use `adapter_point_cloud_r2h.json` on both sides and list the
+probe first:
 
 ```bash
 # Terminal 1
-bash -c 'source /usr/ros/jazzy/setup.bash && ROS_HOME=/data/ros ros2 launch qrb_ros_adapter_stream_probe qrb_ros_adapter_stream_probe.launch.py adapter_config:=/usr/ros/jazzy/share/qrb_ros_adapter_stream_probe/probe_configs/adapter_r2h.json'
+bash -c 'source /usr/ros/jazzy/setup.bash && ROS_HOME=/data/ros ros2 launch qrb_ros_adapter_stream_probe qrb_ros_adapter_stream_probe.launch.py adapter_config:=/usr/ros/jazzy/share/qrb_ros_adapter_stream_probe/probe_configs/adapter_point_cloud_r2h.json'
 # Terminal 2, with CFG set as above
 qcrun QCNodeSampleApp -T 10 \
-  -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_r2h.json -k input_topic -v /frames \
-  -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_r2h.json -k output_topic -v /frames
+  -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_point_cloud_r2h.json -k input_topic -v /frames \
+  -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_point_cloud_r2h.json -k output_topic -v /frames
 ```
 
 For another Contract, use its `adapter_<contract>_{h2r,r2h}.json` from the same
@@ -153,6 +157,49 @@ directory, on both sides and in the same commands.
 
 The run passes when the HCM side prints `probe PASS`. The probe settings are
 in [Sample settings](#sample-settings).
+
+### Several Flows at once
+
+One Bridge serves every Flow; each config in `probe_configs` has its own `name`
+and `ros_topic`, so the Flows run side by side. PointCloud2 from HCM to ROS
+and PoseStamped from ROS to HCM:
+
+1. Start the Bridge alone:
+
+   ```bash
+   bash -c 'source /usr/ros/jazzy/setup.bash && ROS_HOME=/data/ros ros2 launch qrb_ros_adapter ros_ipc_bridge.launch.py'
+   ```
+
+2. In another terminal, run `bash`, then load one ROS probe per Flow into the
+   Bridge container:
+
+   ```bash
+   source /usr/ros/jazzy/setup.bash && export ROS_HOME=/data/ros
+   CFG=/usr/ros/jazzy/share/qrb_ros_adapter_stream_probe/probe_configs PROBE=qrb::adapter::stream_probe::RosStreamProbeNode
+   ros2 component load /qrb_ros_adapter_container qrb_ros_adapter_stream_probe $PROBE -n probe_point_cloud_h2r -p adapter_config:=$CFG/adapter_point_cloud_h2r.json
+   ros2 component load /qrb_ros_adapter_container qrb_ros_adapter_stream_probe $PROBE -n probe_pose_stamped_r2h -p adapter_config:=$CFG/adapter_pose_stamped_r2h.json
+   ```
+
+3. Run the HCM side of each Flow in its own terminal, at the same time. In the
+   terminal of step 2:
+
+   ```bash
+   qcrun QCNodeSampleApp -T 10 \
+     -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_point_cloud_h2r.json -k input_topic -v /frames \
+     -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_point_cloud_h2r.json -k output_topic -v /frames
+   ```
+
+   In a third terminal:
+
+   ```bash
+   CFG=/usr/ros/jazzy/share/qrb_ros_adapter_stream_probe/probe_configs
+   qcrun QCNodeSampleApp -T 10 \
+     -n probe -t StreamProbe -k adapter_config -v $CFG/adapter_pose_stamped_r2h.json -k input_topic -v /frames \
+     -n adapter -t IpcAdapter -k adapter_config -v $CFG/adapter_pose_stamped_r2h.json -k output_topic -v /frames
+   ```
+
+Each terminal prints `probe PASS`. The probes stay loaded until the Bridge
+stops (Ctrl-C in its terminal).
 
 ## License
 

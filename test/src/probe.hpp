@@ -1014,7 +1014,7 @@ enum class ProbeDirection : int
 };
 
 constexpr std::uint32_t kMaxDepth = 32;  // the product's kMaxQosDepth
-constexpr const char * kDefaultAdapterConfig = "adapter_h2r.json";
+constexpr const char * kDefaultAdapterConfig = "adapter_point_cloud_h2r.json";
 
 struct ProbeParams
 {
@@ -1172,7 +1172,7 @@ struct ProbeFlow
 {
   ProbeDirection direction{ProbeDirection::kHcmToRos};
   std::string contract{"qrb.contract.sensor.v1.PointCloud2"};
-  std::string topic{"/qrb_ros_adapter/stream_probe/points"};
+  std::string topic{"/qrb_ros_adapter/stream_probe/points_h2r"};
   std::string reliability{"reliable"};  // the Adapter's QoS defaults, rclcpp::QoS( 10 )
   std::string durability{"volatile"};
   std::uint32_t depth{10};

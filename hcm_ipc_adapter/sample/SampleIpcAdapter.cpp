@@ -22,7 +22,7 @@
  *
  * Attributes:
  *   adapter_config: (optional) a file with the Adapter's static config; it replaces the six
- *                   Flow attributes below
+ *                   Flow attributes below. Without an "id", the sample's node id is used
  *   contract_type : (optional) a mapped Contract, default qrb.contract.sensor.v1.PointCloud2
  *   direction     : (optional) 0: HCM to ROS (default), 1: ROS to HCM
  *   ros_topic     : (optional) default /qrb_ros_adapter/sample/points for PointCloud2,
@@ -249,6 +249,12 @@ QCStatus_e SampleIpcAdapter::LoadAdapterConfig( const std::string &path, std::st
     {
         QC_ERROR( "adapter_config %s has no \"static\" object: %s", path.c_str(), errors.c_str() );
         return QC_STATUS_BAD_ARGUMENTS;
+    }
+    // Without an "id", the file takes the sample's node id; an "id" in the file wins.
+    if ( !dt.Exists( "static.id" ) )
+    {
+        dt.Set<uint32_t>( "static.id", m_nodeId.id );
+        config = dt.Dump();
     }
     m_contract = node.Get<std::string>( "contract_type", "" );
     m_isHcmToRos = ( 0 == node.Get<uint32_t>( "direction", 0 ) );

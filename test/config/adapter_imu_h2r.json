@@ -1,10 +1,9 @@
 {
   "static": {
-    "name": "stream_probe_adapter",
-    "id": 0,
+    "name": "stream_probe_imu_h2r",
     "contract_type": "qrb.contract.sensor.v1.Imu",
     "direction": 0,
-    "ros_topic": "/qrb_ros_adapter/stream_probe/imu",
+    "ros_topic": "/qrb_ros_adapter/stream_probe/imu_h2r",
     "qos_profile": { "reliability": "best_effort", "durability": "volatile", "depth": 5 }
   }
 }

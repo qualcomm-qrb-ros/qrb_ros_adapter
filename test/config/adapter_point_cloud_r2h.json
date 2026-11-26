@@ -1,10 +1,9 @@
 {
   "static": {
-    "name": "stream_probe_adapter",
-    "id": 0,
+    "name": "stream_probe_point_cloud_r2h",
     "contract_type": "qrb.contract.sensor.v1.PointCloud2",
-    "direction": 0,
-    "ros_topic": "/qrb_ros_adapter/stream_probe/points",
+    "direction": 1,
+    "ros_topic": "/qrb_ros_adapter/stream_probe/points_r2h",
     "qos_profile": { "reliability": "best_effort", "durability": "volatile", "depth": 5 }
   }
 }
