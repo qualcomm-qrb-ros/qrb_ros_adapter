@@ -19,7 +19,7 @@
 # qrb_ros_adapter::ros_ipc_bridge_manager.
 # -----------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.16)
-project(qrb_ros_adapter VERSION 0.2.0 LANGUAGES CXX)
+project(qrb_ros_adapter VERSION 1.0.0 LANGUAGES CXX)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)

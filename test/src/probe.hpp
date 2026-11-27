@@ -228,10 +228,10 @@ inline FrameReading CheckFrame(const std::uint8_t * data, std::size_t size, std:
 // two as well as the bytes.
 //
 
-/** @brief Default probe image width: not a multiple of 128, so the two sides' strides differ. */
-constexpr std::uint32_t kDefaultImageWidth = 1928;
-/** @brief Default probe image height: its storage fits 1 MiB on either side. */
-constexpr std::uint32_t kDefaultImageHeight = 160;
+/** @brief Default probe image width, 1080p. */
+constexpr std::uint32_t kDefaultImageWidth = 1920;
+/** @brief Default probe image height, 1080p. */
+constexpr std::uint32_t kDefaultImageHeight = 1080;
 
 /** @brief HCM row stride of an rgb8 image, ALIGN(width * 3, 16) as the QCNode Camera sample. */
 inline std::uint64_t ProbeImageHcmStride(std::uint32_t width)

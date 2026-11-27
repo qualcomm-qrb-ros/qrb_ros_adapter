@@ -19,7 +19,7 @@
 # qrb_ros_adapter::hcm_ipc_adapter (the headers and libQCNode.so).
 # -----------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.19)
-project(qrb_hcm_ipc_adapter VERSION 0.2.0 LANGUAGES CXX)
+project(qrb_hcm_ipc_adapter VERSION 1.0.0 LANGUAGES CXX)
 
 if(NOT CMAKE_PROJECT_NAME STREQUAL "qcnode")
   message(FATAL_ERROR

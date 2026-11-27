@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>qrb_ros_adapter_stream_probe</name>
-  <version>0.2.0</version>
+  <version>1.0.0</version>
   <description>
     The ROS side of the end-to-end test of qrb_ros_adapter: a probe node that sends or receives and checks
     frames through the ROS IPC Bridge and the HCM IPC Adapter, with loss, order and latency statistics.

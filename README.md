@@ -175,7 +175,7 @@ or receives, by the `direction` of the static config.
 | `output_topic`, `input_topic` | required | DataBroker topics. From HCM to ROS, it gives the frames it sends on `output_topic` and takes no `input_topic`. From ROS to HCM, it gives empty frames on `output_topic` and checks the filled ones of `input_topic`. |
 | `fps` | `30` | Frames per second it sends from HCM to ROS, `0` for no pause. |
 | `point_cloud_bytes` | `1048576` | Bytes of each PointCloud2 it sends. From ROS to HCM, it sizes the buffers of its frames by it. |
-| `image_width`, `image_height` | `1928`, `160` | Size of each rgb8 ImageLayout it sends. From ROS to HCM, it sizes the buffers of its frames by them. |
+| `image_width`, `image_height` | `1920`, `1080` | Size of each rgb8 ImageLayout it sends. From ROS to HCM, it sizes the buffers of its frames by them. |
 
 ```bash
 qcrun QCNodeSampleApp -n probe -t StreamProbe [-k <setting> -v <value> ...]
@@ -191,7 +191,7 @@ qcrun QCNodeSampleApp -n probe -t StreamProbe [-k <setting> -v <value> ...]
 | `adapter_config` | `adapter_point_cloud_h2r.json` in `probe_configs` | The static config, the same file as the HCM side's. |
 | `fps` | `30` | Frames per second it sends from ROS to HCM, `0` for no pause. |
 | `point_cloud_bytes` | `1048576` | Bytes of each PointCloud2 it sends from ROS to HCM. |
-| `image_width`, `image_height` | `1928`, `160` | Size of each rgb8 ImageLayout it sends from ROS to HCM. |
+| `image_width`, `image_height` | `1920`, `1080` | Size of each rgb8 ImageLayout it sends from ROS to HCM. |
 | `duration` | `0` | Seconds to run, `0` until stopped. |
 | `log_file` | | Text log file of each frame, a monitor line every 5 s and the summary. |
 

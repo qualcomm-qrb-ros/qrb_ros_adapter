@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>qrb_ros_adapter_runtime</name>
-  <version>0.2.0</version>
+  <version>1.0.0</version>
   <description>
     IPC Runtime of qrb_ros_adapter, shared by the HCM IPC Adapter and the ROS
     IPC Bridge: Flow model, Adapter control protocol, Unix Domain Socket

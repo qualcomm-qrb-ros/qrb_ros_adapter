@@ -21,8 +21,8 @@
 //   input_topic      : (required for ROS to HCM) the topic of the filled frames to check
 //   fps              : (optional) frames per second a sender sends, 0 for no pause, default 30
 //   point_cloud_bytes: (optional) bytes of a PointCloud2 sent, default 1048576
-//   image_width      : (optional) width of an rgb8 ImageLayout sent, default 1928
-//   image_height     : (optional) height of an rgb8 ImageLayout sent, default 160
+//   image_width      : (optional) width of an rgb8 ImageLayout sent, default 1920
+//   image_height     : (optional) height of an rgb8 ImageLayout sent, default 1080
 //   pool_size        : (optional) frames the probe cycles through, 1..32, default 4
 //   warmup           : (optional) seconds a receiver does not measure, default 0
 //
